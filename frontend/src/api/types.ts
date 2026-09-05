@@ -70,3 +70,12 @@ export interface FinancialRecord {
   description: string | null
   created_at: string
 }
+
+export type MessageRole = 'user' | 'assistant' | 'tool'
+
+export interface ConversationMessage {
+  id: number
+  role: MessageRole
+  content: string
+  created_at: string
+}

@@ -9,6 +9,7 @@ import { LoginScreen } from './screens/login/LoginScreen'
 import { RegisterScreen } from './screens/login/RegisterScreen'
 import { MarketScreen } from './screens/market/MarketScreen'
 import { TasksScreen } from './screens/tasks/TasksScreen'
+import { ConversationScreen } from './screens/teyo-chat/ConversationScreen'
 import { AuthProvider } from './state/AuthContext'
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<HomeScreen />} />
+              <Route path="/conversa" element={<ConversationScreen />} />
               <Route path="/tasks" element={<TasksScreen />} />
               <Route path="/agenda" element={<AgendaScreen />} />
               <Route path="/goals" element={<GoalsScreen />} />

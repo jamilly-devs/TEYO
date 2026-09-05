@@ -14,6 +14,7 @@ export function AppLayout() {
     <div className="app-layout">
       <nav>
         <NavLink to="/">Home</NavLink>
+        <NavLink to="/conversa">Conversa</NavLink>
         <NavLink to="/tasks">Tarefas</NavLink>
         <NavLink to="/agenda">Agenda</NavLink>
         <NavLink to="/goals">Objetivos</NavLink>

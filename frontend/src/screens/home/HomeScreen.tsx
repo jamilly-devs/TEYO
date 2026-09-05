@@ -1,4 +1,8 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ApiError } from '../../api/client'
+import { conversationApi } from '../../api/conversation'
 import { eventsApi } from '../../api/events'
 import { tasksApi } from '../../api/tasks'
 import type { ApiResource } from '../../state/useApiResource'
@@ -19,11 +23,45 @@ function isToday(isoDateTime: string): boolean {
 }
 
 function ConversationBlock() {
+  const navigate = useNavigate()
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    const text = draft.trim()
+    if (!text || sending) return
+
+    setSending(true)
+    setError(null)
+    try {
+      // Não é um chat separado — a mesma conversa principal; ao enviar,
+      // abre a tela completa (MODULES/HOME.md).
+      await conversationApi.send(text)
+      navigate('/conversa')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não consegui falar com o TEYO agora.')
+      setSending(false)
+    }
+  }
+
   return (
     <section className="home-block conversation-block">
       <h2>Conversa com TEYO</h2>
-      <p>Em breve você vai poder conversar com o TEYO por aqui.</p>
-      <input type="text" placeholder="Em breve…" disabled />
+      <form onSubmit={handleSubmit}>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Fala com o TEYO…"
+          disabled={sending}
+        />
+        <button type="submit" disabled={sending || !draft.trim()}>
+          {sending ? 'Enviando…' : 'Enviar'}
+        </button>
+      </form>
+      {error && <p role="alert">{error}</p>}
+      <Link to="/conversa">Abrir conversa completa</Link>
     </section>
   )
 }
