@@ -5,7 +5,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from api.deps import SESSION_COOKIE_NAME, SESSION_TTL_DAYS
+from api.deps import SESSION_COOKIE_NAME, SESSION_TTL_DAYS, get_current_user
 from api.schemas.auth import LoginRequest, RegisterRequest, UserOut
 from db.models.session import UserSession
 from db.models.user import User
@@ -13,6 +13,15 @@ from db.security import generate_session_token, hash_password, verify_password
 from db.session import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.get("/me", response_model=UserOut)
+def read_current_user(user: User = Depends(get_current_user)) -> User:
+    """Lets the frontend restore auth state from the session cookie alone
+    (e.g. after a page reload), without requiring the user to log in again.
+    Not a new product decision — it completes the already-decided
+    email+password/session-cookie auth flow so it is actually usable."""
+    return user
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)

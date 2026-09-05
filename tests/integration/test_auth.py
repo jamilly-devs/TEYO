@@ -38,3 +38,17 @@ def test_duplicate_registration_is_rejected(client):
 def test_protected_route_without_session_is_rejected(client):
     response = client.get("/tasks")
     assert response.status_code == 401
+
+
+def test_me_restores_session_after_login(client):
+    client.post("/auth/register", json={"email": "a@b.com", "password": "s3cret!"})
+    client.post("/auth/login", json={"email": "a@b.com", "password": "s3cret!"})
+
+    response = client.get("/auth/me")
+    assert response.status_code == 200
+    assert response.json()["email"] == "a@b.com"
+
+
+def test_me_without_session_is_rejected(client):
+    response = client.get("/auth/me")
+    assert response.status_code == 401
