@@ -3,31 +3,17 @@
 Creates exactly one placeholder user so there is something to develop and
 test against locally after running migrations. Idempotent: safe to run more
 than once. Assumes `alembic upgrade head` has already created the schema.
-
-The password hashing below is a local-development placeholder only — it is
-not a production authentication decision. The definitive hashing scheme
-belongs to whatever registration/login tool is built later; nothing here
-should be read as pre-deciding that.
 """
 
-import hashlib
 import os
-import secrets
 from typing import Optional
 
 from db.models.user import User
+from db.security import hash_password
 from db.session import SessionLocal
 
 DEFAULT_EMAIL = "dev@teyo.local"
 DEFAULT_PASSWORD = "devpassword123"
-
-
-def _hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000
-    )
-    return f"{salt}${digest.hex()}"
 
 
 def seed_dev_user(email: Optional[str] = None, password: Optional[str] = None) -> None:
@@ -40,7 +26,7 @@ def seed_dev_user(email: Optional[str] = None, password: Optional[str] = None) -
             print(f"[seed] dev user already exists: {email}")
             return
 
-        user = User(email=email, password_hash=_hash_password(password))
+        user = User(email=email, password_hash=hash_password(password))
         session.add(user)
         session.commit()
         print(f"[seed] dev user created: {email} / password: {password}")
