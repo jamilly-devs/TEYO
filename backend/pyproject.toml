@@ -1,6 +1,7 @@
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+extend-exclude = ["db/migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
