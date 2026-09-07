@@ -31,11 +31,16 @@ def test_registry_exposes_a_spec_for_every_registered_tool():
         "list_market_items",
         "create_financial_record",
         "list_financial_records",
+        "remember_preference",
+        "remember_fact",
+        "forget_memory",
+        "get_memory",
+        "get_user_preferences",
     }
 
 
 @pytest.mark.parametrize(
-    "name", ["delete_task", "delete_event", "remove_market_item"]
+    "name", ["delete_task", "delete_event", "remove_market_item", "forget_memory"]
 )
 def test_destructive_actions_are_flagged_for_confirmation(name):
     """BUSINESS_RULES.md #4: ações destrutivas exigem confirmação explícita
@@ -62,6 +67,10 @@ def test_destructive_actions_are_flagged_for_confirmation(name):
         "list_market_items",
         "create_financial_record",
         "list_financial_records",
+        "remember_preference",
+        "remember_fact",
+        "get_memory",
+        "get_user_preferences",
     ],
 )
 def test_non_destructive_actions_are_not_flagged(name):

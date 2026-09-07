@@ -25,14 +25,14 @@ DECIDIDO (doc. 3, item 41) — distinção obrigatória:
 - Estado emocional pontual não deve virar preferência permanente.
 - Um padrão observado pelo Motor de Padrões não deve ser reescrito como se fosse uma preferência declarada pelo usuário — eles ficam em tabelas e categorias diferentes, mesmo quando o TEYO os menciona juntos na conversa.
 
-## Como é recuperado (NECESSÁRIO PARA IMPLEMENTAÇÃO)
+## Como é recuperado (resolvido tecnicamente na FASE 6)
 
-O Orquestrador seleciona memória relevante ao turno atual (não a memória inteira do usuário) antes de montar o prompt para o LLM. Critério exato de relevância (busca por palavra-chave, por módulo em foco, etc.) é A DEFINIR tecnicamente.
+O Orquestrador seleciona memória relevante ao turno atual (não a memória inteira do usuário) antes de montar o prompt para o LLM. Critério de relevância implementado: preferências (`category = preference`) vão sempre inteiras (são poucas e devem moldar o comportamento do TEYO de forma consistente); fatos/decisões (`category = fact`/`decision`) são filtrados por correspondência de palavra entre a mensagem atual e `key`/`value` de cada entrada, limitados a 5 resultados por turno (`tools/memory.py:select_relevant_context`). Enviado ao Adapter como uma mensagem `system` separada da instrução principal (`llm/ollama_adapter.py:_render_context`).
 
 ## Como é atualizada / removida
 
-- Atualização: quando o usuário declara algo que contradiz uma entrada existente (ex.: "na verdade agora prefiro de manhã"), o sistema atualiza o registro, mantendo histórico de que houve mudança (NECESSÁRIO PARA IMPLEMENTAÇÃO: decidir se versiona ou sobrescreve — A DEFINIR).
-- Remoção: DECIDIDO (doc. 3, item 42) — o usuário deve poder controlar/alterar/remover suas informações.
+- Atualização: quando o usuário declara algo que contradiz uma entrada existente (ex.: "na verdade agora prefiro de manhã"), o sistema atualiza o registro. RESOLVIDO na FASE 6 (`MEMORY.md` deixava "versiona ou sobrescreve" A DEFINIR, sem recomendação): sobrescreve — mesma `key`+`category` do mesmo usuário é a mesma informação atualizada, não uma nova entrada; não há versionamento de nenhuma outra entidade do V1.
+- Remoção: DECIDIDO (doc. 3, item 42) — o usuário deve poder controlar/alterar/remover suas informações. Implementado na FASE 6 via tool conversacional `forget_memory` (ver `TOOLS.md`); criação via `remember_preference`/`remember_fact`.
 
 ## Privacidade (DECIDIDO, doc. 3, item 42)
 

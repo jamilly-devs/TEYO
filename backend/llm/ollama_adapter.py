@@ -32,7 +32,7 @@ class OllamaAdapter(LLMProvider):
     ) -> LLMResponse:
         payload: dict = {
             "model": self._model,
-            "messages": self._build_messages(system_prompt, conversation),
+            "messages": self._build_messages(system_prompt, context, conversation),
             "stream": False,
             "think": OLLAMA_THINK,
         }
@@ -51,8 +51,16 @@ class OllamaAdapter(LLMProvider):
         return self._parse_response(data)
 
     @staticmethod
-    def _build_messages(system_prompt: str, conversation: list[Message]) -> list[dict]:
+    def _build_messages(
+        system_prompt: str, context: Context, conversation: list[Message]
+    ) -> list[dict]:
         messages = [{"role": "system", "content": system_prompt}]
+        context_text = OllamaAdapter._render_context(context)
+        if context_text:
+            # Mensagem de sistema separada, montada por turno (FASE 6: só
+            # memória/preferências relevantes, nunca "a memória inteira" —
+            # ver MEMORY.md e tools/memory.py:select_relevant_context).
+            messages.append({"role": "system", "content": context_text})
         for m in conversation:
             entry: dict = {"role": m.role, "content": m.content}
             if m.tool_calls:
@@ -65,6 +73,23 @@ class OllamaAdapter(LLMProvider):
                 ]
             messages.append(entry)
         return messages
+
+    @staticmethod
+    def _render_context(context: Context) -> str:
+        """Só preferências e memória (FASE 6). `context.patterns` fica sem
+        uso até a FASE 7 definir o formato em PATTERN_ENGINE.md — nada
+        aqui antecipa isso."""
+        lines: list[str] = []
+        if context.preferences:
+            lines.append(
+                "Preferências que o usuário já declarou "
+                "(não invente novas, não repita como novidade):"
+            )
+            lines.extend(f"- {key}: {value}" for key, value in context.preferences.items())
+        if context.memory:
+            lines.append("Memória relevante a esta conversa:")
+            lines.extend(f"- {item}" for item in context.memory)
+        return "\n".join(lines)
 
     @staticmethod
     def _tool_spec_to_ollama(tool: ToolSpec) -> dict:

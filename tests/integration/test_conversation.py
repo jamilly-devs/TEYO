@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 import pytest
@@ -36,6 +37,7 @@ class StubLLMProvider(LLMProvider):
             self.responses = []
         self.error = error
         self.calls: list[list[Message]] = []
+        self.contexts: list[Context] = []
 
     def generate(
         self,
@@ -45,6 +47,7 @@ class StubLLMProvider(LLMProvider):
         conversation: list[Message],
     ) -> LLMResponse:
         self.calls.append(list(conversation))
+        self.contexts.append(context)
         if self.error is not None:
             raise self.error
         if not self.responses:
@@ -242,5 +245,108 @@ def test_tool_call_loop_has_a_hard_limit_and_never_fakes_success(authenticated_c
         body = response.json()["content"].lower()
         assert "criei" not in body
         assert "concluí" not in body
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+
+# --- FASE 6: memória chega e sai da conversa --------------------------------
+
+
+def test_remember_preference_tool_call_persists_and_shows_up_in_later_context(
+    authenticated_client,
+):
+    stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        name="remember_preference",
+                        arguments={"key": "horario_estudo", "value": "à noite"},
+                    )
+                ],
+            ),
+            LLMResponse(content="Beleza, vou lembrar que você prefere estudar à noite."),
+        ]
+    )
+    _override_llm(stub)
+    try:
+        response = authenticated_client.post(
+            "/conversation/message", json={"content": "eu prefiro estudar à noite"}
+        )
+        assert response.status_code == 200
+        assert "à noite" in response.json()["content"].lower()
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    # turno seguinte: o Context já deve trazer a preferência recém-salva
+    stub2 = StubLLMProvider(response=LLMResponse(content="Beleza, combinado!"))
+    _override_llm(stub2)
+    try:
+        authenticated_client.post("/conversation/message", json={"content": "beleza"})
+        assert stub2.contexts[-1].preferences == {"horario_estudo": "à noite"}
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+
+def test_forget_memory_tool_call_removes_it_from_later_context(authenticated_client):
+    """Ponta a ponta só por HTTP/conversa (sem acessar o banco por fora):
+    lembra um fato, descobre o memory_id consultando get_memory pela
+    própria conversa, esquece, confirma que sumiu do contexto seguinte."""
+    remember_stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[ToolCall(name="remember_fact", arguments={"key": "cidade", "value": "São Paulo"})],
+            ),
+            LLMResponse(content="Beleza, anotado que você mora em São Paulo."),
+        ]
+    )
+    _override_llm(remember_stub)
+    try:
+        authenticated_client.post(
+            "/conversation/message", json={"content": "eu moro em São Paulo"}
+        )
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    lookup_stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="", tool_calls=[ToolCall(name="get_memory", arguments={"query": "São Paulo"})]
+            ),
+            LLMResponse(content="Achei aqui."),
+        ]
+    )
+    _override_llm(lookup_stub)
+    try:
+        authenticated_client.post("/conversation/message", json={"content": "o que você sabe sobre mim?"})
+        tool_result = json.loads(lookup_stub.calls[1][-1].content)
+        memory_id = tool_result["data"]["items"][0]["id"]
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    forget_stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="", tool_calls=[ToolCall(name="forget_memory", arguments={"memory_id": memory_id})]
+            ),
+            LLMResponse(content="Prontinho, esqueci isso."),
+        ]
+    )
+    _override_llm(forget_stub)
+    try:
+        response = authenticated_client.post(
+            "/conversation/message", json={"content": "pode esquecer que eu moro em São Paulo"}
+        )
+        assert response.status_code == 200
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    final_stub = StubLLMProvider(response=LLMResponse(content="Ok!"))
+    _override_llm(final_stub)
+    try:
+        authenticated_client.post("/conversation/message", json={"content": "beleza"})
+        assert final_stub.contexts[-1].memory == []
     finally:
         app.dependency_overrides.pop(get_llm_provider, None)

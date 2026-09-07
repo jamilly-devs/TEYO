@@ -51,6 +51,17 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 - Retorno: novo plano proposto. DECIDIDO: o TEYO sugere, o usuário aceita ou recusa — a tool não aplica a reorganização definitivamente sem uma confirmação (ver `BUSINESS_RULES.md`).
 
 
+## remember_preference / remember_fact
+- Adicionadas na FASE 6 (decisão tomada com Jams em 2026-09-06, registrada em `DOCUMENTATION_AUDIT.md`): a lista-base original não tinha nenhuma tool de escrita para `memory_entries` — sem elas a conversa nunca criaria memória, o que contradiz `MEMORY.md` ("quando algo é salvo").
+- Parâmetros obrigatórios: `key`, `value`. `remember_preference` grava com `category = preference`; `remember_fact` com `category = fact`. Ambas gravam com `source = user_stated`.
+- Se já existir uma entrada com a mesma `key` (e mesma categoria) do mesmo usuário, o valor é atualizado (sobrescreve — ver `MEMORY.md`, "versiona ou sobrescreve" resolvido nesta fase).
+- Não deve ser chamada para estado emocional ou situacional pontual (ex.: "hoje estou cansado") — ver `MEMORY.md`, "quando algo NÃO deve ser salvo".
+
+## forget_memory
+- Adicionada na FASE 6 (mesma decisão acima). Parâmetro obrigatório: `memory_id`.
+- DECIDIDO (regra de segurança, igual às outras exclusões): ação destrutiva — exige confirmação explícita do usuário antes da chamada (ver `BUSINESS_RULES.md`).
+- Resolve `ACCEPTANCE_CRITERIA.md` ("remover uma entrada de memória a pedido do usuário efetivamente a exclui").
+
 ## get_user_preferences
 - Retorno: preferências armazenadas em `memory_entries` (categoria `preference`).
 

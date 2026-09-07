@@ -9,7 +9,6 @@ from db.models.conversation import Conversation
 from db.models.conversation import Message as MessageModel
 from db.models.enums import MessageRole
 from llm.base import (
-    Context,
     LLMInvalidResponseError,
     LLMProvider,
     LLMUnavailableError,
@@ -19,6 +18,7 @@ from llm.base import (
 from llm.config import CONVERSATION_HISTORY_WINDOW
 from orchestrator.prompt import SYSTEM_PROMPT
 from tools.errors import ToolError
+from tools.memory import select_relevant_context
 from tools.registry import ToolRegistry, default_tool_registry
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,11 @@ class Orchestrator:
 
         llm_conversation = self._recent_history(db, conversation.id)
         available_tools = self._tools.specs()
+        # Memória relevante ao turno atual (MEMORY.md), montada uma vez a
+        # partir da mensagem original do usuário e reaproveitada em todas
+        # as rodadas de tool_calls deste turno — não recalculada a cada
+        # rodada, já que o "turno" é a pergunta original do usuário.
+        context = select_relevant_context(db, user_id, text)
         executed_tool_calls: list[dict] = []
 
         reply_text = ""
@@ -78,7 +83,7 @@ class Orchestrator:
             try:
                 response = self._llm.generate(
                     system_prompt=SYSTEM_PROMPT,
-                    context=Context(),
+                    context=context,
                     available_tools=available_tools,
                     conversation=llm_conversation,
                 )

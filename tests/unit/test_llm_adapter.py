@@ -1,6 +1,6 @@
 import pytest
 
-from llm.base import LLMInvalidResponseError
+from llm.base import Context, LLMInvalidResponseError
 from llm.ollama_adapter import OllamaAdapter
 
 
@@ -81,7 +81,7 @@ def test_build_messages_replays_tool_calls_and_tool_results():
         Message(role="tool", content='{"status": "success", "data": {"id": 1}}'),
     ]
 
-    messages = OllamaAdapter._build_messages("system prompt", conversation)
+    messages = OllamaAdapter._build_messages("system prompt", Context(), conversation)
 
     assert messages[2] == {
         "role": "assistant",
@@ -99,5 +99,34 @@ def test_build_messages_replays_tool_calls_and_tool_results():
 def test_build_messages_omits_tool_calls_key_when_there_are_none():
     from llm.base import Message
 
-    messages = OllamaAdapter._build_messages("system prompt", [Message(role="user", content="oi")])
+    messages = OllamaAdapter._build_messages(
+        "system prompt", Context(), [Message(role="user", content="oi")]
+    )
     assert "tool_calls" not in messages[1]
+
+
+def test_build_messages_has_no_context_system_message_when_context_is_empty():
+    from llm.base import Message
+
+    messages = OllamaAdapter._build_messages(
+        "system prompt", Context(), [Message(role="user", content="oi")]
+    )
+    assert [m["role"] for m in messages] == ["system", "user"]
+
+
+def test_build_messages_injects_preferences_and_memory_as_a_second_system_message():
+    from llm.base import Message
+
+    context = Context(memory=["cidade: São Paulo"], preferences={"horario_estudo": "à noite"})
+    messages = OllamaAdapter._build_messages(
+        "system prompt", context, [Message(role="user", content="oi")]
+    )
+
+    assert [m["role"] for m in messages] == ["system", "system", "user"]
+    context_message = messages[1]["content"]
+    assert "horario_estudo: à noite" in context_message
+    assert "cidade: São Paulo" in context_message
+
+
+def test_render_context_is_empty_string_when_nothing_to_report():
+    assert OllamaAdapter._render_context(Context()) == ""
