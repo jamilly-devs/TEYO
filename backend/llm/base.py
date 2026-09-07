@@ -10,9 +10,21 @@ Role = Literal["system", "user", "assistant", "tool"]
 
 
 @dataclass
+class ToolCall:
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
 class Message:
     role: Role
     content: str
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    """Preenchido só em mensagens `role="assistant"` que chamaram tools —
+    permite reenviar ao Adapter, na rodada seguinte, o mesmo tool_call que o
+    modelo fez, junto do resultado (`role="tool"`) que vem depois na
+    conversa. Sem isso o modelo perde o contexto de qual chamada gerou qual
+    resultado (LLM.md: normalização de tool calling)."""
 
 
 @dataclass
@@ -36,12 +48,6 @@ class ToolSpec:
     name: str
     description: str
     parameters: dict[str, Any]
-
-
-@dataclass
-class ToolCall:
-    name: str
-    arguments: dict[str, Any]
 
 
 @dataclass

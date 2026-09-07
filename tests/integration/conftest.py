@@ -1,11 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from api.main import app
 from db.base import Base
 from db import models  # noqa: F401  (registers every model on Base.metadata)
+from db.models.user import User
 from db.session import get_db
 
 
@@ -46,3 +47,40 @@ def authenticated_client(client, registered_user):
     response = client.post("/auth/login", json=registered_user)
     assert response.status_code == 200
     return client
+
+
+@pytest.fixture()
+def db_session(tmp_path):
+    """Sessão de banco isolada e em memória, para testar a camada de Tools
+    direto (TESTING.md: 'Tools: cada tool testada isoladamente') sem
+    precisar do transporte HTTP/autenticação da API."""
+    db_path = tmp_path / "tools.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+@pytest.fixture()
+def user_id(db_session: Session) -> int:
+    user = User(email="tools-user@example.com", password_hash="irrelevant-for-tool-tests")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user.id
+
+
+@pytest.fixture()
+def other_user_id(db_session: Session) -> int:
+    """Um segundo usuário, para os testes de isolamento por user_id
+    (BUSINESS_RULES.md #17, ARCHITECTURE.md)."""
+    user = User(email="other-tools-user@example.com", password_hash="irrelevant-for-tool-tests")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user.id

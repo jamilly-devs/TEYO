@@ -25,7 +25,7 @@ O frontend nunca acessa o banco ou o LLM diretamente. Toda comunicação passa p
 - `GET /events`, `POST /events`, `PATCH /events/{id}`, `DELETE /events/{id}`.
 
 ### Mercado
-- `GET /market`, `POST /market/items`, `PATCH /market/items/{id}` (status), `DELETE /market/items/{id}` — mecanismo exato de remoção A DEFINIR (ver `MODULES/MARKET.md`).
+- `GET /market`, `POST /market/items`, `PATCH /market/items/{id}` (status, ex.: marcar como comprado — não remove a linha), `DELETE /market/items/{id}` (exclusão definitiva — ver `MODULES/MARKET.md`, resolvido na FASE 5).
 
 ### Finanças
 - `GET /finance/records`, `POST /finance/records`.

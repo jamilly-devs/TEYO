@@ -62,3 +62,42 @@ def test_tool_spec_is_translated_to_ollama_function_format():
             "parameters": spec.parameters,
         },
     }
+
+
+def test_build_messages_replays_tool_calls_and_tool_results():
+    """FASE 5: depois de executar uma tool, o Orquestrador reenvia a
+    mensagem do assistente com `tool_calls` e o resultado (`role="tool"`)
+    de volta ao modelo — o Adapter precisa serializar isso no mesmo
+    formato que ele próprio leu em `_parse_response`."""
+    from llm.base import Message, ToolCall
+
+    conversation = [
+        Message(role="user", content="cria uma tarefa de estudar inglês"),
+        Message(
+            role="assistant",
+            content="",
+            tool_calls=[ToolCall(name="create_task", arguments={"title": "Estudar inglês"})],
+        ),
+        Message(role="tool", content='{"status": "success", "data": {"id": 1}}'),
+    ]
+
+    messages = OllamaAdapter._build_messages("system prompt", conversation)
+
+    assert messages[2] == {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {"function": {"name": "create_task", "arguments": {"title": "Estudar inglês"}}}
+        ],
+    }
+    assert messages[3] == {
+        "role": "tool",
+        "content": '{"status": "success", "data": {"id": 1}}',
+    }
+
+
+def test_build_messages_omits_tool_calls_key_when_there_are_none():
+    from llm.base import Message
+
+    messages = OllamaAdapter._build_messages("system prompt", [Message(role="user", content="oi")])
+    assert "tool_calls" not in messages[1]

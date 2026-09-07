@@ -53,7 +53,17 @@ class OllamaAdapter(LLMProvider):
     @staticmethod
     def _build_messages(system_prompt: str, conversation: list[Message]) -> list[dict]:
         messages = [{"role": "system", "content": system_prompt}]
-        messages.extend({"role": m.role, "content": m.content} for m in conversation)
+        for m in conversation:
+            entry: dict = {"role": m.role, "content": m.content}
+            if m.tool_calls:
+                # Mesmo formato que _parse_response lê de volta — replay
+                # fiel do que o próprio Ollama mandou, para o modelo manter
+                # o contexto de qual tool_call gerou qual resultado.
+                entry["tool_calls"] = [
+                    {"function": {"name": tc.name, "arguments": tc.arguments}}
+                    for tc in m.tool_calls
+                ]
+            messages.append(entry)
         return messages
 
     @staticmethod

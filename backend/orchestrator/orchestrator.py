@@ -1,16 +1,34 @@
+import json
 import logging
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from db.models.conversation import Conversation
 from db.models.conversation import Message as MessageModel
 from db.models.enums import MessageRole
-from llm.base import Context, LLMInvalidResponseError, LLMProvider, LLMUnavailableError, Message
+from llm.base import (
+    Context,
+    LLMInvalidResponseError,
+    LLMProvider,
+    LLMUnavailableError,
+    Message,
+    ToolCall,
+)
 from llm.config import CONVERSATION_HISTORY_WINDOW
 from orchestrator.prompt import SYSTEM_PROMPT
+from tools.errors import ToolError
+from tools.registry import ToolRegistry, default_tool_registry
 
 logger = logging.getLogger(__name__)
+
+# Segurança técnica contra encadeamento infinito de tool_calls — nenhum
+# documento define um limite (LLM.md não cobre esse caso), então é uma
+# escolha de implementação, não de produto: generosa o bastante para
+# qualquer fluxo real de FLOWS.md (nenhum deles encadeia mais de duas ou
+# três ações), curta o bastante para nunca deixar uma resposta pendurada.
+MAX_TOOL_ROUNDS = 4
 
 
 class OrchestratorError(Exception):
@@ -37,8 +55,9 @@ def get_or_create_conversation(db: Session, user_id: int) -> Conversation:
 
 
 class Orchestrator:
-    def __init__(self, llm: LLMProvider):
+    def __init__(self, llm: LLMProvider, tools: Optional[ToolRegistry] = None):
         self._llm = llm
+        self._tools = tools or default_tool_registry()
 
     def handle_user_message(self, db: Session, user_id: int, text: str) -> MessageModel:
         conversation = get_or_create_conversation(db, user_id)
@@ -51,38 +70,58 @@ class Orchestrator:
         db.commit()
 
         llm_conversation = self._recent_history(db, conversation.id)
+        available_tools = self._tools.specs()
+        executed_tool_calls: list[dict] = []
 
-        try:
-            response = self._llm.generate(
-                system_prompt=SYSTEM_PROMPT,
-                context=Context(),
-                available_tools=[],
-                conversation=llm_conversation,
+        reply_text = ""
+        for _ in range(MAX_TOOL_ROUNDS):
+            try:
+                response = self._llm.generate(
+                    system_prompt=SYSTEM_PROMPT,
+                    context=Context(),
+                    available_tools=available_tools,
+                    conversation=llm_conversation,
+                )
+            except LLMUnavailableError as exc:
+                raise OrchestratorError(
+                    "Não consegui falar com o TEYO agora. Tenta de novo em instantes."
+                ) from exc
+            except LLMInvalidResponseError as exc:
+                raise OrchestratorError(
+                    "O TEYO deu uma resposta que eu não consegui entender. Tenta de novo."
+                ) from exc
+
+            if not response.tool_calls:
+                reply_text = response.content
+                break
+
+            llm_conversation.append(
+                Message(role="assistant", content=response.content, tool_calls=response.tool_calls)
             )
-        except LLMUnavailableError as exc:
-            raise OrchestratorError(
-                "Não consegui falar com o TEYO agora. Tenta de novo em instantes."
-            ) from exc
-        except LLMInvalidResponseError as exc:
-            raise OrchestratorError(
-                "O TEYO deu uma resposta que eu não consegui entender. Tenta de novo."
-            ) from exc
-
-        reply_text = response.content
-        if response.tool_calls:
-            # FASE 5 (Tools) ainda não existe: nenhuma tool é executável.
-            # Mesmo tratamento de "ferramenta inexistente chamada pelo LLM"
-            # de ERROR_HANDLING.md — não executa nada, não confirma ação.
+            for call in response.tool_calls:
+                result = self._run_tool(db, user_id, call)
+                executed_tool_calls.append(
+                    {"name": call.name, "arguments": call.arguments, "result": result}
+                )
+                llm_conversation.append(
+                    Message(role="tool", content=json.dumps(result, default=str))
+                )
+        else:
             logger.warning(
-                "tool_call recebido do LLM antes da FASE 5 existir: %s",
-                [tc.name for tc in response.tool_calls],
+                "conversa excedeu MAX_TOOL_ROUNDS=%s de tool_calls para user_id=%s",
+                MAX_TOOL_ROUNDS,
+                user_id,
             )
-            reply_text = reply_text or (
-                "Ainda não consigo realizar ações — só conversar por enquanto."
+            reply_text = (
+                "Não consegui terminar essa ação — foram muitos passos. "
+                "Pode tentar de novo ou me contar de outro jeito o que você quer?"
             )
 
         assistant_message = MessageModel(
-            conversation_id=conversation.id, role=MessageRole.ASSISTANT, content=reply_text
+            conversation_id=conversation.id,
+            role=MessageRole.ASSISTANT,
+            content=reply_text,
+            tool_calls=executed_tool_calls or None,
         )
         db.add(assistant_message)
         conversation.last_message_at = datetime.utcnow()
@@ -90,6 +129,19 @@ class Orchestrator:
         db.refresh(assistant_message)
 
         return assistant_message
+
+    def _run_tool(self, db: Session, user_id: int, call: ToolCall) -> dict:
+        """Executa uma tool e devolve um resultado explícito de
+        sucesso/erro — nunca deixa uma exceção de tool virar uma resposta
+        de sucesso fingido (ERROR_HANDLING.md: 'Tool falha → Orquestrador
+        recebe erro da tool, repassa ao LLM como resultado de erro')."""
+        try:
+            data = self._tools.execute(db, user_id, call.name, call.arguments)
+            return {"status": "success", "data": data}
+        except ToolError as exc:
+            db.rollback()
+            logger.warning("tool '%s' falhou para user_id=%s: %s", call.name, user_id, exc)
+            return {"status": "error", "message": str(exc)}
 
     @staticmethod
     def _recent_history(db: Session, conversation_id: int) -> list[Message]:

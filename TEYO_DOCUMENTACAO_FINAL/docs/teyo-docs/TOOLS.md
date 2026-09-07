@@ -20,7 +20,7 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 
 ## complete_task
 - Parâmetros obrigatórios: `task_id`.
-- Efeito colateral: dispara evento de gamificação (`gamification_events`) e possível atualização de `mascot_state`.
+- Efeito colateral: dispara evento de gamificação (`gamification_events`) e possível atualização de `mascot_state`. NECESSÁRIO PARA IMPLEMENTAÇÃO: esse efeito colateral é FASE 9 (`GAMIFICATION.md`, `MASCOT.md`); na FASE 5, `complete_task` apenas marca a tarefa como concluída, sem nenhum efeito de XP/mascote.
 
 ## create_event / update_event / delete_event
 - Mesma estrutura de `tasks`, aplicada a `events`. `delete_event` exige confirmação.
@@ -34,7 +34,13 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 
 ## remove_market_item
 - Parâmetros obrigatórios: `item_id`.
-- A DEFINIR: se "remover" significa excluir o item da lista ou marcar como comprado/consumido (ver `MODULES/MARKET.md`). Até a decisão, a tool existe com este nome mas seu efeito exato fica documentado como A DEFINIR.
+- DECIDIDO (registrado em `DOCUMENTATION_AUDIT.md`, sincronizado na FASE 5): exclusão definitiva do item (hard delete), distinta de marcar como comprado (`status = purchased`, feito pela tela via `PATCH /market/items/{id}`). Ação destrutiva — exige confirmação explícita do usuário antes da chamada, como qualquer outra exclusão.
+
+## list_tasks / list_events / list_goals / list_market_items / list_financial_records
+- Adicionadas na FASE 5 (decisão tomada com Jams em 2026-09-06, registrada em `DOCUMENTATION_AUDIT.md`): a lista-base original não tinha nenhuma tool de leitura para Tarefas/Agenda/Objetivos/Mercado/Finanças além de `get_daily_plan` (que só cobre o dia atual e só existe a partir da FASE 8). Sem uma tool de listagem, o LLM não teria como resolver referências ambíguas a itens existentes fora do que já foi dito na própria conversa.
+- Sem parâmetros obrigatórios; retornam todos os itens do módulo pertencentes ao usuário (mesmo dado que as telas correspondentes usam via `GET` de `API.md`).
+- Tools de leitura: não alteram dados, podem ser chamadas livremente pelo contexto da conversa (regra geral abaixo).
+- Uso típico: antes de `update_task`/`delete_task`/`complete_task`, `update_event`/`delete_event`, `update_goal` ou `remove_market_item`, quando o item mencionado pelo usuário não está claro a partir do histórico recente da conversa.
 
 ## get_daily_plan
 - Sem parâmetros obrigatórios (usa `user_id` da sessão).
