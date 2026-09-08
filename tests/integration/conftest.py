@@ -50,6 +50,25 @@ def authenticated_client(client, registered_user):
 
 
 @pytest.fixture()
+def client_db_session(client, tmp_path):
+    """Sessão extra ligada ao mesmo arquivo SQLite do `client` HTTP —
+    permite manipular timestamps históricos (ex.: `Task.updated_at`) que a
+    API não expõe, necessário para testar o Motor de Padrões no nível do
+    Orquestrador/conversa (equivalente ao que `db_session` já faz no nível
+    de tools isoladas, ver test_tools_patterns.py). Depende de `client`
+    para garantir que as tabelas já existem quando esta sessão abre."""
+    db_path = tmp_path / "integration.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+@pytest.fixture()
 def db_session(tmp_path):
     """Sessão de banco isolada e em memória, para testar a camada de Tools
     direto (TESTING.md: 'Tools: cada tool testada isoladamente') sem

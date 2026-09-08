@@ -36,6 +36,8 @@ def test_registry_exposes_a_spec_for_every_registered_tool():
         "forget_memory",
         "get_memory",
         "get_user_preferences",
+        "get_patterns",
+        "get_routine_changes",
     }
 
 
@@ -71,6 +73,8 @@ def test_destructive_actions_are_flagged_for_confirmation(name):
         "remember_fact",
         "get_memory",
         "get_user_preferences",
+        "get_patterns",
+        "get_routine_changes",
     ],
 )
 def test_non_destructive_actions_are_not_flagged(name):

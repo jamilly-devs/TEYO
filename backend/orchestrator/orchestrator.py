@@ -19,6 +19,7 @@ from llm.config import CONVERSATION_HISTORY_WINDOW
 from orchestrator.prompt import SYSTEM_PROMPT
 from tools.errors import ToolError
 from tools.memory import select_relevant_context
+from tools.patterns import select_relevant_patterns
 from tools.registry import ToolRegistry, default_tool_registry
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,11 @@ class Orchestrator:
         # as rodadas de tool_calls deste turno — não recalculada a cada
         # rodada, já que o "turno" é a pergunta original do usuário.
         context = select_relevant_context(db, user_id, text)
+        # Padrões ativos + mudanças de rotina recentes (PATTERN_ENGINE.md,
+        # FLOWS.md item 7) — mesmo cálculo sob demanda de
+        # tools/patterns.py, reaproveitado aqui só para preencher o
+        # contexto do turno.
+        context.patterns = select_relevant_patterns(db, user_id)
         executed_tool_calls: list[dict] = []
 
         reply_text = ""

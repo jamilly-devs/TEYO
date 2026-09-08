@@ -1,10 +1,13 @@
 import json
+from datetime import datetime, timedelta
 from typing import Optional
 
 import pytest
 
 from api.main import app
 from api.routers.conversation import get_llm_provider
+from db.models.enums import TaskCategory, TaskStatus
+from db.models.task import Task
 from llm.base import (
     Context,
     LLMInvalidResponseError,
@@ -348,5 +351,137 @@ def test_forget_memory_tool_call_removes_it_from_later_context(authenticated_cli
     try:
         authenticated_client.post("/conversation/message", json={"content": "beleza"})
         assert final_stub.contexts[-1].memory == []
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+
+# --- FASE 7: padrões chegam à conversa ---------------------------------------
+#
+# Cenário sintético igual ao de tests/integration/test_tools_patterns.py
+# (mesma janela de referência, mesmos históricos), mas exercitado pelo
+# caminho HTTP -> Orquestrador -> Adapter completo, não só pela tool
+# isolada — auditoria da FASE 7 apontou que não havia nenhuma cobertura
+# nesse nível (ao contrário da FASE 6, memória/preferências acima).
+
+PATTERNS_NOW = datetime(2026, 9, 7, 12, 0, 0)
+
+
+def _pattern_at(days_ago: int, hour: int) -> datetime:
+    return (PATTERNS_NOW - timedelta(days=days_ago)).replace(
+        hour=hour, minute=0, second=0, microsecond=0
+    )
+
+
+def _completed_pattern_task(db, user_id, category, when):
+    task = Task(
+        user_id=user_id, title="x", category=category, status=TaskStatus.DONE, updated_at=when
+    )
+    db.add(task)
+    db.commit()
+    return task
+
+
+def _seed_active_house_pattern(db, user_id):
+    for i in range(15):
+        _completed_pattern_task(db, user_id, TaskCategory.HOUSE, _pattern_at(8 + (i % 14), 20))
+    for offset in (20, 15, 10):
+        _completed_pattern_task(db, user_id, TaskCategory.HOUSE, _pattern_at(offset, 8))
+
+
+def _seed_deprecated_studies_pattern_with_recent_change(db, user_id):
+    for i in range(24):
+        _completed_pattern_task(db, user_id, TaskCategory.STUDIES, _pattern_at(8 + (i % 14), 20))
+    for offset in (1, 2, 3, 4, 5, 6):
+        _completed_pattern_task(db, user_id, TaskCategory.STUDIES, _pattern_at(offset, 8))
+    _completed_pattern_task(db, user_id, TaskCategory.STUDIES, _pattern_at(7, 20))
+
+
+def _patch_pattern_engine_now(monkeypatch):
+    """Trava datetime.utcnow() do Motor de Padrões no mesmo instante de
+    referência usado para gerar o histórico sintético acima (mesma técnica
+    de test_tools_patterns.py:_patch_now — o Orquestrador chama
+    select_relevant_patterns/refresh_patterns_for_user sem `now` explícito,
+    igual às tools)."""
+    import pattern_engine.task_time_of_day as engine
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def utcnow(cls):
+            return PATTERNS_NOW
+
+    monkeypatch.setattr(engine, "datetime", _FixedDatetime)
+
+
+def test_context_patterns_includes_active_pattern_and_recent_change_through_orchestrator(
+    authenticated_client, client_db_session, monkeypatch
+):
+    """Context.patterns precisa ser calculado pelo Orquestrador a cada
+    turno, antes da chamada ao LLM (orchestrator.py), e conter tanto o
+    padrão ativo quanto a mudança recente detectada — não só quando a tool
+    é chamada isoladamente."""
+    _patch_pattern_engine_now(monkeypatch)
+    user_id = authenticated_client.get("/auth/me").json()["id"]
+    _seed_active_house_pattern(client_db_session, user_id)
+    _seed_deprecated_studies_pattern_with_recent_change(client_db_session, user_id)
+
+    stub = StubLLMProvider(response=LLMResponse(content="Oi!"))
+    _override_llm(stub)
+    try:
+        response = authenticated_client.post("/conversation/message", json={"content": "oi"})
+        assert response.status_code == 200
+
+        patterns = stub.contexts[-1].patterns
+        assert any("house" in line for line in patterns)
+        assert any("Possível mudança" in line and "studies" in line for line in patterns)
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+
+def test_get_patterns_empty_result_does_not_hide_a_detected_routine_change(
+    authenticated_client, client_db_session, monkeypatch
+):
+    """Auditoria FASE 7: quando get_patterns é chamada para uma categoria
+    recém-despromovida por divergência sustentada, o resultado vem com
+    `items: []`, mas `routine_changes_detected: true` — e uma chamada
+    seguinte a get_routine_changes devolve o detalhe real da mudança. Isso
+    garante que o fluxo tem, em ambos os passos, o que precisa para nunca
+    concluir "não há padrão/mudança" com a informação correta disponível
+    (PATTERN_ENGINE.md, TOOLS.md)."""
+    _patch_pattern_engine_now(monkeypatch)
+    user_id = authenticated_client.get("/auth/me").json()["id"]
+    _seed_deprecated_studies_pattern_with_recent_change(client_db_session, user_id)
+
+    stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        name="get_patterns",
+                        arguments={"pattern_type": "task_time_of_day:studies"},
+                    )
+                ],
+            ),
+            LLMResponse(content="", tool_calls=[ToolCall(name="get_routine_changes", arguments={})]),
+            LLMResponse(content="Percebi que você mudou o horário de estudar pra manhã."),
+        ]
+    )
+    _override_llm(stub)
+    try:
+        response = authenticated_client.post(
+            "/conversation/message",
+            json={"content": "você percebeu alguma mudança na minha rotina de estudos?"},
+        )
+        assert response.status_code == 200
+
+        get_patterns_result = json.loads(stub.calls[1][-1].content)
+        assert get_patterns_result["data"]["items"] == []
+        assert get_patterns_result["data"]["routine_changes_detected"] is True
+
+        get_routine_changes_result = json.loads(stub.calls[2][-1].content)
+        changes = get_routine_changes_result["data"]["items"]
+        assert len(changes) == 1
+        assert changes[0]["category"] == "studies"
+        assert changes[0]["recent_change"] is True
     finally:
         app.dependency_overrides.pop(get_llm_provider, None)

@@ -12,8 +12,9 @@ Critérios verificáveis por área — cada um deve ser demonstrável por um tes
 - Compromisso sobreposto a outro existente gera sinalização ao usuário antes da confirmação (quando a decisão de `PLANNER.md` for confirmada).
 
 ## Motor de Padrões
-- Um único evento fora do padrão não altera `routines.status` de `active` para `deprecated`.
-- Uma sequência sustentada de eventos divergentes (conforme limiar A DEFINIR) resulta em novo `candidate` sendo observado.
+- Um único evento fora do padrão não altera `patterns.status` de `active` para `deprecated`.
+- Uma sequência sustentada de eventos divergentes na janela recente (limiar de 70% de confiança sobre um mínimo de 3 ocorrências, ver `PATTERN_ENGINE.md`) despromove a linha existente de `active` para `deprecated`. DECIDIDO na FASE 7 (ver `DOCUMENTATION_AUDIT.md`): isso não cria uma segunda linha `candidate` para o período emergente — mantém-se uma única linha por usuário/categoria, e a mudança emergente fica disponível via `recent_change`/`get_routine_changes`, sem promoção automática a `active` do novo período (a promoção definitiva continua exigindo a trilha normal: `candidate` → `active` a 80% de frequência na janela histórica de 21 dias).
+- `get_patterns` (padrões atuais confirmados) pode retornar vazio para uma categoria no exato momento em que ela é despromovida por divergência — isso nunca deve ser interpretado como "não há padrão/mudança"; `get_routine_changes` (ou o bloco de padrões em `Context.patterns`) permanece com a informação da mudança detectada.
 
 ## Memória
 - Uma preferência declarada pelo usuário aparece em `memory_entries` com `category = preference`.

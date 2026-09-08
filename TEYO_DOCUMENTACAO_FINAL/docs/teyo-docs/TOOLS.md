@@ -71,10 +71,11 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 
 ## get_patterns
 - Parâmetros opcionais: `pattern_type`.
-- Retorno: padrões com `status = active` (e `candidate` apenas quando explicitamente solicitado), no formato estruturado definido em `PATTERN_ENGINE.md` (ex.: padrão, período predominante, frequência, status, mudança recente, confiança).
+- Retorno: `items` com os padrões `status = active` (e `candidate` apenas quando explicitamente solicitado, isto é, quando `pattern_type` é informado), no formato estruturado definido em `PATTERN_ENGINE.md` (ex.: padrão, período predominante, frequência, status, mudança recente, confiança); `deprecated` nunca aparece em `items`. Além de `items`, o retorno inclui `routine_changes_detected` (bool): `true` quando existe alguma categoria (dentro do filtro de `pattern_type`, se informado) com uma mudança recente sustentada detectada pelo Motor — inclusive quando essa categoria não aparece em `items` porque acabou de ser despromovida para `deprecated` na mesma computação (ver `PATTERN_ENGINE.md`, rebaixamento `active`→`deprecated`). Existe para que `items` vazio nunca seja lido como "não há padrão nem mudança": quando `routine_changes_detected` vier `true`, ou a pergunta do usuário for sobre mudança de rotina, a tool a usar para o detalhe é `get_routine_changes`, não esta.
+- Implementado na FASE 7 só para `pattern_type = "task_time_of_day:<categoria>"` (ex.: `task_time_of_day:studies`) — único dado real disponível das FASES 2-6 (ver `PATTERN_ENGINE.md`). Passar só `"task_time_of_day"` retorna todas as categorias (prefixo).
 
 ## get_routine_changes
-- Retorno: mudanças de rotina detectadas com confiança acima do limiar (A DEFINIR o valor exato — ver `PATTERN_ENGINE.md`), para o TEYO poder comentar proativamente ("Percebi que ultimamente...").
+- Retorno: mudanças de rotina detectadas com confiança acima do limiar (70%, confirmado com Jams na FASE 7 — ver `PATTERN_ENGINE.md`), para o TEYO poder comentar proativamente ("Percebi que ultimamente...").
 
 ## Regras gerais de todas as tools (DECIDIDO)
 

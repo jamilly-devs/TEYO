@@ -76,9 +76,6 @@ class OllamaAdapter(LLMProvider):
 
     @staticmethod
     def _render_context(context: Context) -> str:
-        """Só preferências e memória (FASE 6). `context.patterns` fica sem
-        uso até a FASE 7 definir o formato em PATTERN_ENGINE.md — nada
-        aqui antecipa isso."""
         lines: list[str] = []
         if context.preferences:
             lines.append(
@@ -89,6 +86,12 @@ class OllamaAdapter(LLMProvider):
         if context.memory:
             lines.append("Memória relevante a esta conversa:")
             lines.extend(f"- {item}" for item in context.memory)
+        if context.patterns:
+            # FASE 7: padrões calculados pelo sistema, nunca pelo LLM
+            # (PATTERN_ENGINE.md) — só interpretação, os números já vêm
+            # prontos aqui.
+            lines.append("Padrões de rotina identificados pelo sistema (não recalcule os números):")
+            lines.extend(f"- {item}" for item in context.patterns)
         return "\n".join(lines)
 
     @staticmethod
