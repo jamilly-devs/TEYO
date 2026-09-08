@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from api.routers import auth, conversation, events, finance, goals, market, tasks
+from api.routers import auth, conversation, events, finance, goals, market, planner, tasks
 
 app = FastAPI(title="TEYO API")
 
@@ -11,3 +11,4 @@ app.include_router(events.router)
 app.include_router(goals.router)
 app.include_router(market.router)
 app.include_router(finance.router)
+app.include_router(planner.router)

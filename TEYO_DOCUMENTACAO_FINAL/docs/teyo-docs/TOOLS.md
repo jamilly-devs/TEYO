@@ -25,6 +25,7 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 ## create_event / update_event / delete_event
 - Mesma estrutura de `tasks`, aplicada a `events`. `delete_event` exige confirmação.
 - `create_event` deve resolver linguagem natural de data/hora (ex.: "amanhã às duas") no Orquestrador antes de chamar a tool com `start_at`/`end_at` já normalizados — a tool em si recebe apenas valores estruturados, não texto livre.
+- **Sobreposição de horário** (parâmetro opcional `confirm_overlap`, DECIDIDO com Jams na FASE 8 — ver `PLANNER.md`, `MODULES/AGENDA.md`): se o novo horário sobrepõe um compromisso existente do usuário, `create_event`/`update_event` não criam/alteram nada por padrão — devolvem `{"conflict": true, "conflicting_events": [...]}`. Só criam/alteram mesmo com sobreposição quando `confirm_overlap: true` é passado explicitamente, depois de o usuário confirmar. `update_event` só verifica conflito quando `start_at`/`end_at` estão sendo alterados.
 
 ## create_goal / update_goal
 - Parâmetros obrigatórios (create): `title`. Opcionais: `description`, `target_date`.
@@ -43,12 +44,13 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 - Uso típico: antes de `update_task`/`delete_task`/`complete_task`, `update_event`/`delete_event`, `update_goal` ou `remove_market_item`, quando o item mencionado pelo usuário não está claro a partir do histórico recente da conversa.
 
 ## get_daily_plan
-- Sem parâmetros obrigatórios (usa `user_id` da sessão).
-- Retorno: lista ordenada de tarefas/compromissos do dia, montada pelo Planejador (ver `PLANNER.md`), não pelo LLM.
+- Sem parâmetros (usa `user_id` da sessão).
+- Retorno: `{"date": "AAAA-MM-DD", "items": [...]}`, lista ordenada de tarefas/compromissos de hoje, montada pelo Planejador (ver `PLANNER.md`, algoritmo confirmado com Jams na FASE 8), não pelo LLM. Cada item: `kind` (`event`/`task`), `id`, `title`, `period` (madrugada/manhã/tarde/noite, ou `null`), `start_at` (só itens com horário fixo), `priority` (só tasks), `reason`/`suggested_due_date` (só preenchidos por `reorganize_day`).
+- Implementado na FASE 8 só com dado real das fases anteriores: `tasks` + `events` + padrões `active` de `task_time_of_day` — sem hábitos, sem progresso de objetivo, sem padrão `productivity_time` (nunca existiu, ver `PATTERN_ENGINE.md`).
 
 ## reorganize_day
-- Parâmetros opcionais: `constraint` (texto livre transformado pelo Orquestrador em parâmetros estruturados, ex.: `energy_level: low`).
-- Retorno: novo plano proposto. DECIDIDO: o TEYO sugere, o usuário aceita ou recusa — a tool não aplica a reorganização definitivamente sem uma confirmação (ver `BUSINESS_RULES.md`).
+- Parâmetro opcional: `energy_level` (enum `low`/`medium`/`high`), já interpretado pelo LLM a partir da mensagem do usuário (ex.: "estou cansado" → `low`) — mesmo mecanismo de tool-calling tipado de `create_event`, sem etapa separada de NLU no Orquestrador.
+- Retorno: mesmo formato de `get_daily_plan` — uma PROPOSTA. DECIDIDO com Jams na FASE 8 (ver `PLANNER.md`): só `energy_level = "low"` tem efeito (tarefas sem horário fixo com `priority = high` e/ou `pomodoro_enabled = true` vão para o fim da lista, com `suggested_due_date` sugerindo amanhã); os demais valores devolvem o mesmo plano de `get_daily_plan`. A tool não aplica a reorganização definitivamente — a aplicação é feita chamando `update_task`/`update_event` normalmente, um por um, só depois de confirmação do usuário (ver `BUSINESS_RULES.md`).
 
 
 ## remember_preference / remember_fact

@@ -485,3 +485,155 @@ def test_get_patterns_empty_result_does_not_hide_a_detected_routine_change(
         assert changes[0]["recent_change"] is True
     finally:
         app.dependency_overrides.pop(get_llm_provider, None)
+
+
+# --- FASE 8: Planejador chega à conversa -------------------------------------
+
+
+def test_get_daily_plan_tool_call_reaches_conversation(authenticated_client):
+    authenticated_client.post("/tasks", json={"title": "estudar", "priority": "high"})
+
+    stub = StubLLMProvider(
+        responses=[
+            LLMResponse(content="", tool_calls=[ToolCall(name="get_daily_plan", arguments={})]),
+            LLMResponse(content="Hoje você tem 'estudar' no seu plano."),
+        ]
+    )
+    _override_llm(stub)
+    try:
+        response = authenticated_client.post(
+            "/conversation/message", json={"content": "qual é o meu plano de hoje?"}
+        )
+        assert response.status_code == 200
+
+        tool_result = json.loads(stub.calls[1][-1].content)
+        assert tool_result["data"]["items"][0]["title"] == "estudar"
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+
+def test_reorganize_day_proposal_then_apply_via_update_task(authenticated_client):
+    """FLOWS.md item 5: reorganize_day só propõe; a aplicação real, depois
+    da confirmação do usuário, acontece via update_task normal — num turno
+    separado (BUSINESS_RULES.md #12: o Planejador sugere, não aplica em
+    massa sem confirmação)."""
+    heavy = authenticated_client.post("/tasks", json={"title": "pesada", "priority": "high"}).json()
+
+    propose_stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[ToolCall(name="reorganize_day", arguments={"energy_level": "low"})],
+            ),
+            LLMResponse(content="Que tal adiar 'pesada' pra amanhã? Você tá cansado hoje."),
+        ]
+    )
+    _override_llm(propose_stub)
+    try:
+        response = authenticated_client.post(
+            "/conversation/message", json={"content": "estou muito cansado hoje"}
+        )
+        assert response.status_code == 200
+        proposal = json.loads(propose_stub.calls[1][-1].content)
+        suggested_due_date = proposal["data"]["items"][-1]["suggested_due_date"]
+        assert suggested_due_date is not None
+        # reorganize_day não aplicou nada sozinho
+        assert authenticated_client.get("/tasks").json()[0]["due_date"] is None
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    apply_stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        name="update_task",
+                        arguments={
+                            "task_id": heavy["id"],
+                            "due_date": f"{suggested_due_date}T09:00:00",
+                        },
+                    )
+                ],
+            ),
+            LLMResponse(content="Prontinho, joguei 'pesada' pra amanhã."),
+        ]
+    )
+    _override_llm(apply_stub)
+    try:
+        response = authenticated_client.post(
+            "/conversation/message", json={"content": "pode jogar pra amanhã"}
+        )
+        assert response.status_code == 200
+        updated_task = authenticated_client.get("/tasks").json()[0]
+        assert updated_task["due_date"].startswith(suggested_due_date)
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+
+def test_create_event_conflict_flow_requires_confirm_overlap(authenticated_client):
+    """MODULES/AGENDA.md, PLANNER.md: sobreposição sinalizada, nunca
+    aplicada sem confirmação explícita numa mensagem seguinte."""
+    authenticated_client.post(
+        "/events",
+        json={"title": "reunião", "start_at": "2026-09-10T14:00:00", "end_at": "2026-09-10T15:00:00"},
+    )
+
+    conflict_stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        name="create_event",
+                        arguments={
+                            "title": "dentista",
+                            "start_at": "2026-09-10T14:30:00",
+                            "end_at": "2026-09-10T15:30:00",
+                        },
+                    )
+                ],
+            ),
+            LLMResponse(content="Isso bate com sua reunião das 14h. Quer criar mesmo assim?"),
+        ]
+    )
+    _override_llm(conflict_stub)
+    try:
+        response = authenticated_client.post(
+            "/conversation/message", json={"content": "marca dentista dia 10 às 14:30"}
+        )
+        assert response.status_code == 200
+        tool_result = json.loads(conflict_stub.calls[1][-1].content)
+        assert tool_result["data"]["conflict"] is True
+        assert len(authenticated_client.get("/events").json()) == 1
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)
+
+    confirm_stub = StubLLMProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        name="create_event",
+                        arguments={
+                            "title": "dentista",
+                            "start_at": "2026-09-10T14:30:00",
+                            "end_at": "2026-09-10T15:30:00",
+                            "confirm_overlap": True,
+                        },
+                    )
+                ],
+            ),
+            LLMResponse(content="Beleza, criei mesmo com a sobreposição."),
+        ]
+    )
+    _override_llm(confirm_stub)
+    try:
+        response = authenticated_client.post(
+            "/conversation/message", json={"content": "sim, pode criar mesmo assim"}
+        )
+        assert response.status_code == 200
+        assert len(authenticated_client.get("/events").json()) == 2
+    finally:
+        app.dependency_overrides.pop(get_llm_provider, None)

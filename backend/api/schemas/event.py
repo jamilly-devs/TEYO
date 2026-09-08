@@ -11,12 +11,17 @@ class EventCreate(BaseModel):
     start_at: datetime
     end_at: datetime
     source: Optional[EventSource] = None
+    confirm_overlap: Optional[bool] = None
+    """FASE 8 (PLANNER.md/MODULES/AGENDA.md): só True depois que o usuário
+    confirmar explicitamente que quer criar mesmo com sobreposição a outro
+    compromisso — sem isso, um conflito não cria o evento (ver tools/events.py)."""
 
 
 class EventUpdate(BaseModel):
     title: Optional[str] = None
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
+    confirm_overlap: Optional[bool] = None
 
 
 class EventOut(BaseModel):

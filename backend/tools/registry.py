@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from llm.base import ToolSpec
-from tools import events, finance, goals, market, memory, patterns, tasks
+from tools import events, finance, goals, market, memory, patterns, planner, tasks
 from tools.base import ToolDefinition
 from tools.errors import UnknownToolError
 
@@ -42,5 +42,6 @@ def default_tool_registry() -> ToolRegistry:
             *finance.DEFINITIONS,
             *memory.DEFINITIONS,
             *patterns.DEFINITIONS,
+            *planner.DEFINITIONS,
         ]
     )

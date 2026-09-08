@@ -11,6 +11,7 @@
 - **LLM**: testes de contrato do Adapter (entrada/saída conforme `LLM.md`), usando um modelo real ou um stub determinístico para CI.
 - **Memória**: entradas de `memory_entries` são criadas/atualizadas/removidas conforme `MEMORY.md`.
 - **Motor de Padrões**: casos sintéticos replicando o exemplo do histórico (21 dias / 18 noite / 3 manhã → predominante noite; 7 dias recentes / 6 manhã / 1 noite → possível mudança) para validar que a lógica não promove padrão a partir de um evento isolado.
+- **Planejador**: casos sintéticos cobrindo o algoritmo confirmado com Jams na FASE 8 (`PLANNER.md`) — eventos e tarefas com `due_date` como âncoras cronológicas por período do dia; tarefas sem `due_date` ordenadas por prioridade, com padrão `active` de `task_time_of_day` como critério adicional de período e `created_at` como desempate; tarefas sem período disponível ao final da lista; `reorganize_day` com `energy_level: "low"` adiando só tarefas sem horário de maior esforço (`priority = high` e/ou `pomodoro_enabled`), nunca tocando âncoras; sobreposição de `events` sinalizada (`conflict`/HTTP 409) e nunca criada sem `confirm_overlap`.
 - **Fluxos críticos**: os 15 fluxos de `FLOWS.md`, cobrindo o caminho feliz e ao menos um caminho de erro/ambiguidade cada.
 - **Regressão**: qualquer regra de `BUSINESS_RULES.md` violada por uma mudança futura deve falhar em teste automatizado antes de chegar à FASE seguinte do roadmap.
 

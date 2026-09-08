@@ -38,6 +38,8 @@ def test_registry_exposes_a_spec_for_every_registered_tool():
         "get_user_preferences",
         "get_patterns",
         "get_routine_changes",
+        "get_daily_plan",
+        "reorganize_day",
     }
 
 
@@ -75,6 +77,8 @@ def test_destructive_actions_are_flagged_for_confirmation(name):
         "get_user_preferences",
         "get_patterns",
         "get_routine_changes",
+        "get_daily_plan",
+        "reorganize_day",
     ],
 )
 def test_non_destructive_actions_are_not_flagged(name):

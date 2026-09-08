@@ -9,7 +9,14 @@ Critérios verificáveis por área — cada um deve ser demonstrável por um tes
 
 ## Agenda
 - Criar um compromisso por linguagem natural ("amanhã às duas") resulta em `events.start_at` correto para o dia seguinte às 14:00 no fuso do usuário.
-- Compromisso sobreposto a outro existente gera sinalização ao usuário antes da confirmação (quando a decisão de `PLANNER.md` for confirmada).
+- Compromisso sobreposto a outro existente gera sinalização ao usuário antes da confirmação: `create_event`/`update_event` não criam/alteram nada quando há sobreposição não confirmada (`conflict: true` na tool, HTTP 409 no endpoint REST), e só criam/alteram mesmo assim com `confirm_overlap: true` explícito, depois da confirmação do usuário. DECIDIDO com Jams na FASE 8 (ver `PLANNER.md`, `DOCUMENTATION_AUDIT.md`) — resolve o "A DEFINIR" anterior.
+
+## Planejador
+- `get_daily_plan` nunca reordena/move um `event` ou uma `task` com `due_date` hoje — eles são âncoras fixas do plano.
+- Uma tarefa sem `due_date` some do plano ao ser concluída (`status = done`) ou cancelada; tarefas `done`/`cancelled` nunca aparecem em `get_daily_plan`.
+- `reorganize_day` nunca altera `tasks`/`events` no banco por si só — a proposta só vira mudança real depois de uma chamada explícita a `update_task`/`update_event`, feita após confirmação do usuário na conversa.
+- `reorganize_day` com `energy_level: "low"` nunca move um `event` ou uma tarefa com `due_date` hoje; só afeta tarefas sem horário fixo de maior esforço (`priority = high` e/ou `pomodoro_enabled = true`).
+- O plano do dia calculado por `get_daily_plan` é isolado por `user_id` (`BUSINESS_RULES.md` #17).
 
 ## Motor de Padrões
 - Um único evento fora do padrão não altera `patterns.status` de `active` para `deprecated`.
