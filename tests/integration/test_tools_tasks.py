@@ -67,6 +67,49 @@ def test_complete_task_marks_done_without_gamification_fields(db_session, user_i
     assert "mascot_state" not in result
 
 
+def test_complete_task_fires_domain_hook(db_session, user_id, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "core.task_completion.on_task_completed",
+        lambda db, uid, task: calls.append((uid, task.id)),
+    )
+    task = create_task(db_session, user_id, {"title": "x"})
+
+    complete_task(db_session, user_id, {"task_id": task["id"]})
+
+    assert calls == [(user_id, task["id"])]
+
+
+def test_update_task_to_done_fires_domain_hook_once(db_session, user_id, monkeypatch):
+    # `update_task` com status=done é um dos quatro caminhos de conclusão —
+    # passa pelo mesmo ponto único; e não redispara numa tarefa já done.
+    calls = []
+    monkeypatch.setattr(
+        "core.task_completion.on_task_completed",
+        lambda db, uid, task: calls.append(task.id),
+    )
+    task = create_task(db_session, user_id, {"title": "x"})
+
+    first = update_task(db_session, user_id, {"task_id": task["id"], "status": "done"})
+    update_task(db_session, user_id, {"task_id": task["id"], "status": "done"})
+
+    assert first["status"] == "done"
+    assert calls == [task["id"]]
+
+
+def test_update_task_without_status_change_does_not_fire_hook(db_session, user_id, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "core.task_completion.on_task_completed",
+        lambda db, uid, task: calls.append(task.id),
+    )
+    task = create_task(db_session, user_id, {"title": "x"})
+
+    update_task(db_session, user_id, {"task_id": task["id"], "priority": "high"})
+
+    assert calls == []
+
+
 def test_list_tasks_only_returns_owner_tasks(db_session, user_id, other_user_id):
     create_task(db_session, user_id, {"title": "minha"})
     create_task(db_session, other_user_id, {"title": "alheia"})

@@ -11,9 +11,11 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from core.domain_events import on_low_energy_reported
 from db.models.user import User
 from llm.base import ToolSpec
-from planner.daily_plan import DailyPlan, PlanItem, compute_daily_plan, compute_reorganized_plan
+from planner.daily_plan import compute_daily_plan, compute_reorganized_plan
+from planner.serialization import serialize_plan
 from tools.base import ToolDefinition
 from tools.errors import ToolNotFoundError
 
@@ -25,39 +27,23 @@ def _get_user(db: Session, user_id: int) -> User:
     return user
 
 
-def _serialize_item(item: PlanItem) -> dict[str, Any]:
-    return {
-        "kind": item.kind,
-        "id": item.id,
-        "title": item.title,
-        "period": item.period,
-        "start_at": item.start_at.isoformat() if item.start_at else None,
-        "priority": item.priority.value if item.priority else None,
-        "reason": item.reason,
-        "suggested_due_date": (
-            item.suggested_due_date.isoformat() if item.suggested_due_date else None
-        ),
-    }
-
-
-def _serialize_plan(plan: DailyPlan) -> dict[str, Any]:
-    return {
-        "date": plan.plan_date.isoformat(),
-        "items": [_serialize_item(item) for item in plan.items],
-    }
-
-
 def get_daily_plan(db: Session, user_id: int, arguments: dict[str, Any]) -> dict[str, Any]:
     user = _get_user(db, user_id)
     plan = compute_daily_plan(db, user)
-    return _serialize_plan(plan)
+    return serialize_plan(plan)
 
 
 def reorganize_day(db: Session, user_id: int, arguments: dict[str, Any]) -> dict[str, Any]:
     user = _get_user(db, user_id)
     energy_level: Optional[str] = arguments.get("energy_level")
     plan = compute_reorganized_plan(db, user, energy_level=energy_level)
-    return _serialize_plan(plan)
+    if energy_level == "low":
+        # Sinal observável de baixa energia. FASE 8: só log; FASE 9 usa
+        # para a expressão acolhedora do mascote (MASCOT.md). Disparado
+        # aqui e no endpoint REST — o sinal não depende do ponto de
+        # entrada. Não altera o retorno da tool (contrato de TOOLS.md).
+        on_low_energy_reported(db, user_id)
+    return serialize_plan(plan)
 
 
 DEFINITIONS = [

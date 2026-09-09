@@ -63,3 +63,49 @@ def test_reorganize_day_without_energy_level_matches_get_daily_plan(db_session, 
     reorganized = reorganize_day(db_session, user_id, {})
 
     assert reorganized["items"] == plan["items"]
+
+
+def test_reorganize_day_return_keeps_tools_md_contract(db_session, user_id):
+    # "serializer tipado, contrato intacto": os campos internos
+    # energy_level/reorganized de DailyPlan NÃO podem vazar no retorno.
+    _task(db_session, user_id, "pesada", priority=TaskPriority.HIGH)
+
+    result = reorganize_day(db_session, user_id, {"energy_level": "low"})
+
+    assert set(result) == {"date", "items"}
+    assert set(result["items"][0]) == {
+        "kind",
+        "id",
+        "title",
+        "period",
+        "start_at",
+        "priority",
+        "reason",
+        "suggested_due_date",
+    }
+
+
+def test_reorganize_day_low_energy_emits_observable_signal(db_session, user_id, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "tools.planner.on_low_energy_reported", lambda db, uid: calls.append(uid)
+    )
+    _task(db_session, user_id, "pesada", priority=TaskPriority.HIGH)
+
+    reorganize_day(db_session, user_id, {"energy_level": "low"})
+
+    assert calls == [user_id]
+
+
+def test_reorganize_day_non_low_energy_does_not_emit_signal(db_session, user_id, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "tools.planner.on_low_energy_reported", lambda db, uid: calls.append(uid)
+    )
+    _task(db_session, user_id, "pesada", priority=TaskPriority.HIGH)
+
+    reorganize_day(db_session, user_id, {})
+    reorganize_day(db_session, user_id, {"energy_level": "medium"})
+    reorganize_day(db_session, user_id, {"energy_level": "high"})
+
+    assert calls == []

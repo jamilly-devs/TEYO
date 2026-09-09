@@ -36,3 +36,38 @@ def test_reorganize_endpoint_without_energy_level_matches_daily_plan(authenticat
     reorganized = authenticated_client.post("/planner/reorganize", json={}).json()
 
     assert reorganized["items"] == plan["items"]
+
+
+def test_daily_plan_endpoint_keeps_tools_md_contract(authenticated_client):
+    authenticated_client.post("/tasks", json={"title": "estudar", "priority": "high"})
+
+    body = authenticated_client.get("/planner/daily-plan").json()
+
+    assert set(body) == {"date", "items"}
+    assert set(body["items"][0]) == {
+        "kind",
+        "id",
+        "title",
+        "period",
+        "start_at",
+        "priority",
+        "reason",
+        "suggested_due_date",
+    }
+
+
+def test_reorganize_endpoint_emits_low_energy_signal_only_for_low(
+    authenticated_client, monkeypatch
+):
+    calls = []
+    monkeypatch.setattr(
+        "api.routers.planner.on_low_energy_reported", lambda db, uid: calls.append(uid)
+    )
+    authenticated_client.post("/tasks", json={"title": "pesada", "priority": "high"})
+
+    authenticated_client.post("/planner/reorganize", json={"energy_level": "low"})
+    assert len(calls) == 1
+
+    authenticated_client.post("/planner/reorganize", json={"energy_level": "high"})
+    authenticated_client.post("/planner/reorganize", json={})
+    assert len(calls) == 1

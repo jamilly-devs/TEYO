@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from api.schemas.task import TaskCreate, TaskOut, TaskUpdate
+from core import task_completion
 from db.models.enums import TaskCategory, TaskPriority, TaskStatus
 from db.models.goal import Goal
 from db.models.task import Task
@@ -67,9 +68,20 @@ def update_task(db: Session, user_id: int, arguments: dict[str, Any]) -> dict[st
     if fields.get("goal_id") is not None:
         _validate_goal_ownership(db, user_id, fields["goal_id"])
 
+    # Concluir via `update_task` (status=done) é um dos quatro caminhos de
+    # conclusão — passa pelo mesmo ponto único que `complete_task`, para o
+    # gancho de domínio da FASE 9 ter um lugar só onde se ligar.
+    completing = (
+        fields.get("status") == TaskStatus.DONE and task.status != TaskStatus.DONE
+    )
     for field, value in fields.items():
+        if completing and field == "status":
+            continue
         setattr(task, field, value)
-    task.updated_at = datetime.utcnow()
+    if completing:
+        task_completion.complete_task(db, user_id, task)
+    else:
+        task.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(task)
     return _serialize(task)
@@ -84,14 +96,14 @@ def delete_task(db: Session, user_id: int, arguments: dict[str, Any]) -> dict[st
 
 
 def complete_task(db: Session, user_id: int, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Marca a tarefa como concluída. O efeito colateral de gamificação
-    citado em TOOLS.md (`gamification_events` / `mascot_state`) é FASE 9 —
-    ainda não existe (`backend/gamification`, `backend/mascot` estão
-    vazios) e não é implementado aqui."""
+    """Marca a tarefa como concluída, pelo ponto único
+    `core.task_completion` (que dispara o gancho de domínio
+    `on_task_completed`). O efeito colateral de gamificação citado em
+    TOOLS.md (`gamification_events` / `mascot_state`) é FASE 9 — o gancho
+    existe mas não tem efeito nesta fase; nada de XP/mascote aqui."""
     task_id = require_id(arguments, "task_id")
     task = _get_owned_task(db, user_id, task_id)
-    task.status = TaskStatus.DONE
-    task.updated_at = datetime.utcnow()
+    task_completion.complete_task(db, user_id, task)
     db.commit()
     db.refresh(task)
     return _serialize(task)

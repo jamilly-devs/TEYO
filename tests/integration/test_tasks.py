@@ -30,6 +30,32 @@ def test_update_and_complete_task(authenticated_client):
     assert response.json()["status"] == "done"
 
 
+def test_complete_endpoint_fires_domain_hook(authenticated_client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "core.task_completion.on_task_completed", lambda db, uid, task: calls.append(task.id)
+    )
+    task = authenticated_client.post("/tasks", json={"title": "x"}).json()
+
+    authenticated_client.post(f"/tasks/{task['id']}/complete")
+
+    assert calls == [task["id"]]
+
+
+def test_patch_status_done_fires_domain_hook_once(authenticated_client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "core.task_completion.on_task_completed", lambda db, uid, task: calls.append(task.id)
+    )
+    task = authenticated_client.post("/tasks", json={"title": "x"}).json()
+
+    r = authenticated_client.patch(f"/tasks/{task['id']}", json={"status": "done"})
+    authenticated_client.patch(f"/tasks/{task['id']}", json={"status": "done"})
+
+    assert r.json()["status"] == "done"
+    assert calls == [task["id"]]
+
+
 def test_delete_task_removes_it(authenticated_client):
     task = authenticated_client.post("/tasks", json={"title": "x"}).json()
     response = authenticated_client.delete(f"/tasks/{task['id']}")

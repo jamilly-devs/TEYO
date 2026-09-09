@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from api.deps import get_current_user
 from api.schemas.task import TaskCreate, TaskOut, TaskUpdate
+from core import task_completion
 from db.models.enums import TaskStatus
 from db.models.goal import Goal
 from db.models.task import Task
@@ -63,9 +64,20 @@ def update_task(
     if "goal_id" in fields and fields["goal_id"] is not None:
         _validate_goal_ownership(fields["goal_id"], user, db)
 
+    # `status=done` via PATCH é um dos quatro caminhos de conclusão — passa
+    # pelo mesmo ponto único que `POST /{id}/complete` (ver
+    # core/task_completion.py).
+    completing = (
+        fields.get("status") == TaskStatus.DONE and task.status != TaskStatus.DONE
+    )
     for field, value in fields.items():
+        if completing and field == "status":
+            continue
         setattr(task, field, value)
-    task.updated_at = datetime.utcnow()
+    if completing:
+        task_completion.complete_task(db, user.id, task)
+    else:
+        task.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(task)
     return task
@@ -85,8 +97,7 @@ def complete_task(
     task_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> Task:
     task = _get_owned_task(task_id, user, db)
-    task.status = TaskStatus.DONE
-    task.updated_at = datetime.utcnow()
+    task_completion.complete_task(db, user.id, task)
     db.commit()
     db.refresh(task)
     return task

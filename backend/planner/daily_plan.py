@@ -34,39 +34,23 @@ de PLANNER.md, ver DOCUMENTATION_AUDIT.md)
    duração estimada em `tasks`/`events`)."""
 
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
+from core.day_window import PERIOD_ORDER, day_bounds, local_today, period_for_hour
+from core.effort import is_high_effort
 from db.models.enums import PatternStatus, TaskPriority, TaskStatus
 from db.models.event import Event
 from db.models.task import Task
 from db.models.user import User
 from pattern_engine.task_time_of_day import PATTERN_TYPE_PREFIX, refresh_patterns_for_user
 
-_PERIOD_ORDER = ("madrugada", "manhã", "tarde", "noite")
-_PERIOD_HOURS: dict[str, range] = {
-    "madrugada": range(0, 6),
-    "manhã": range(6, 12),
-    "tarde": range(12, 18),
-    "noite": range(18, 24),
-}
+# Definição de dia/fuso e divisão de período agora vêm de `core.day_window`
+# (compartilhado com a FASE 9); "maior esforço" vem de `core.effort`.
 _PRIORITY_RANK = {TaskPriority.HIGH: 0, TaskPriority.MEDIUM: 1, TaskPriority.LOW: 2}
 _OPEN_STATUSES = (TaskStatus.PENDING, TaskStatus.IN_PROGRESS)
-
-# DECIDIDO com Jams (FASE 8, Opção A de reorganize_day): sem duração/esforço
-# estimado no schema, "maior esforço" é só o que já existe em `tasks` —
-# prioridade alta e/ou Pomodoro habilitado. Nenhuma métrica nova é inventada.
-_HIGH_EFFORT_PRIORITY = TaskPriority.HIGH
-
-
-def _period_for_hour(hour: int) -> str:
-    for period, hours in _PERIOD_HOURS.items():
-        if hour in hours:
-            return period
-    raise AssertionError(f"hora fora do intervalo 0-23: {hour}")
 
 
 @dataclass
@@ -87,18 +71,12 @@ class PlanItem:
 class DailyPlan:
     plan_date: date
     items: list[PlanItem]
-
-
-def _local_today(user: User, now: Optional[datetime] = None) -> date:
-    """`now` explícito (testes) é tratado como já estando no fuso do
-    usuário — mesma convenção usada pelo restante do sistema para
-    `due_date`/`start_at` (ACCEPTANCE_CRITERIA.md: horário resolvido "no
-    fuso do usuário", sem conversão adicional para UTC em nenhum lugar do
-    código atual). Sem `now`, usa a hora real no fuso salvo em
-    `users.timezone`."""
-    if now is not None:
-        return now.date()
-    return datetime.now(ZoneInfo(user.timezone)).date()
+    # Ecoam o pedido de `reorganize_day` para a FASE 9 estender o objeto
+    # tipado (ex.: anexar expressão do mascote) sem mudar assinatura. NÃO
+    # são serializados no retorno das tools/endpoints — o contrato de
+    # `TOOLS.md` (`{"date", "items": [...]}`) fica byte-a-byte igual.
+    energy_level: Optional[str] = None
+    reorganized: bool = False
 
 
 def _active_predominant_periods(db: Session, user_id: int) -> dict[str, str]:
@@ -122,7 +100,7 @@ def _anchored_items(events: list[Event], tasks_with_due_date: list[Task]) -> lis
             kind="event",
             id=event.id,
             title=event.title,
-            period=_period_for_hour(event.start_at.hour),
+            period=period_for_hour(event.start_at.hour),
             start_at=event.start_at,
         )
         for event in events
@@ -132,7 +110,7 @@ def _anchored_items(events: list[Event], tasks_with_due_date: list[Task]) -> lis
             kind="task",
             id=task.id,
             title=task.title,
-            period=_period_for_hour(task.due_date.hour),
+            period=period_for_hour(task.due_date.hour),
             start_at=task.due_date,
             priority=task.priority,
             pomodoro_enabled=task.pomodoro_enabled,
@@ -152,7 +130,7 @@ def _unanchored_sort_key(item: PlanItem) -> tuple:
 def _unanchored_items(
     tasks_without_due_date: list[Task], active_periods: dict[str, str]
 ) -> tuple[dict[str, list[PlanItem]], list[PlanItem]]:
-    buckets: dict[str, list[PlanItem]] = {period: [] for period in _PERIOD_ORDER}
+    buckets: dict[str, list[PlanItem]] = {period: [] for period in PERIOD_ORDER}
     unscheduled: list[PlanItem] = []
     for task in tasks_without_due_date:
         item = PlanItem(
@@ -179,9 +157,8 @@ def _unanchored_items(
 
 
 def compute_daily_plan(db: Session, user: User, now: Optional[datetime] = None) -> DailyPlan:
-    today = _local_today(user, now=now)
-    day_start = datetime.combine(today, time.min)
-    day_end = datetime.combine(today, time.max)
+    today = local_today(user, now=now)
+    day_start, day_end = day_bounds(user, now=now)
 
     events = (
         db.query(Event)
@@ -213,7 +190,7 @@ def compute_daily_plan(db: Session, user: User, now: Optional[datetime] = None) 
     buckets, unscheduled = _unanchored_items(tasks_without_due_date, active_periods)
 
     items: list[PlanItem] = []
-    for period in _PERIOD_ORDER:
+    for period in PERIOD_ORDER:
         items.extend(buckets[period])
         items.extend(item for item in anchored if item.period == period)
     items.extend(unscheduled)
@@ -239,6 +216,7 @@ def compute_reorganized_plan(
     para justificar outro comportamento sem inventar dado."""
     plan = compute_daily_plan(db, user, now=now)
     if energy_level != "low":
+        plan.energy_level = energy_level
         return plan
 
     tomorrow = plan.plan_date + timedelta(days=1)
@@ -246,10 +224,10 @@ def compute_reorganized_plan(
     deferred: list[PlanItem] = []
     for item in plan.items:
         is_unanchored_task = item.kind == "task" and item.start_at is None
-        is_high_effort = is_unanchored_task and (
-            item.priority == _HIGH_EFFORT_PRIORITY or bool(item.pomodoro_enabled)
+        is_heavy = is_unanchored_task and is_high_effort(
+            priority=item.priority, pomodoro_enabled=item.pomodoro_enabled
         )
-        if is_high_effort:
+        if is_heavy:
             item.reason = (
                 "Esforço mais alto (prioridade alta e/ou Pomodoro) — sugerido "
                 "adiar por causa do seu nível de energia hoje."
@@ -259,7 +237,12 @@ def compute_reorganized_plan(
         else:
             kept.append(item)
 
-    return DailyPlan(plan_date=plan.plan_date, items=kept + deferred)
+    return DailyPlan(
+        plan_date=plan.plan_date,
+        items=kept + deferred,
+        energy_level="low",
+        reorganized=True,
+    )
 
 
 def find_overlapping_events(
