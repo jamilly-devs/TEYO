@@ -30,6 +30,7 @@ EXPECTED_TABLES = {
     "mascot_state",
     "pomodoro_sessions",
     "achievements",
+    "job_applications",
 }
 
 FORBIDDEN_TABLES = {"pets", "news_preferences", "reports", "career", "studies", "house"}

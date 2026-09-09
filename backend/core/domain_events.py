@@ -9,7 +9,8 @@ conhecer XP/mascote — continuam só chamando `on_*`.
 
 Regras (mantidas da FASE 8):
 - As assinaturas de `on_task_completed` / `on_pomodoro_completed` /
-  `on_low_energy_reported` **não mudam**.
+  `on_low_energy_reported` **não mudam**. A FASE 10 adiciona
+  `on_habit_logged` no mesmo padrão, sem tocar as anteriores.
 - Nenhum subscriber deve dar `commit`/`rollback` — quem originou a ação é
   dono da transação (ARCHITECTURE.md).
 - Um subscriber que levanta exceção **nunca** quebra a ação de origem:
@@ -23,6 +24,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:  # evita import circular em runtime; só para type hints
+    from db.models.habit import HabitLog
     from db.models.pomodoro import PomodoroSession
     from db.models.task import Task
 
@@ -35,6 +37,7 @@ logger = logging.getLogger(__name__)
 TASK_COMPLETED = "task_completed"
 POMODORO_COMPLETED = "pomodoro_completed"
 LOW_ENERGY_REPORTED = "low_energy_reported"
+HABIT_LOGGED = "habit_logged"
 LEVEL_UP = "level_up"
 ACHIEVEMENT_UNLOCKED = "achievement_unlocked"
 
@@ -88,10 +91,11 @@ def on_pomodoro_completed(
 ) -> None:
     """Ponto único de "sessão de Pomodoro concluída".
 
-    A FASE 9 liga a gamificação a este gancho, mas **não cria um módulo de
-    Pomodoro**: `pomodoro_sessions` continua sem escritor de produção. O
-    caminho é exercitado por teste chamando o gancho direto; quando o
-    módulo de Pomodoro existir, é aqui que a conclusão da sessão entra."""
+    A FASE 9 ligou a gamificação a este gancho; a FASE 10 adiciona o
+    chamador de produção: `core.pomodoro_completion.complete_session` o
+    dispara quando uma sessão VÁLIDA (DT-4) é concluída via
+    `POST /pomodoro/sessions/{id}/complete`. O XP é da gamificação (regra
+    da FASE 9) — nada de XP aqui."""
     logger.info(
         "domain_event=pomodoro_completed user_id=%s session_id=%s", user_id, session.id
     )
@@ -108,3 +112,15 @@ def on_low_energy_reported(db: Session, user_id: int) -> None:
     fazem `db.commit()` logo depois."""
     logger.info("domain_event=low_energy_reported user_id=%s", user_id)
     _dispatch(LOW_ENERGY_REPORTED, db=db, user_id=user_id)
+
+
+def on_habit_logged(db: Session, user_id: int, habit_log: "HabitLog") -> None:
+    """"Hábito registrado" — disparado por `habits.service.log_habit` só
+    quando um log NOVO é criado (idempotência por dia fica no serviço, não
+    aqui). FASE 10: a gamificação credita `XP_HABIT_LOGGED` (regra e evento
+    `habit_logged` já existentes desde a FASE 9) e o mascote fica `happy`.
+    Não concede XP aqui; não commita."""
+    logger.info(
+        "domain_event=habit_logged user_id=%s habit_log_id=%s", user_id, habit_log.id
+    )
+    _dispatch(HABIT_LOGGED, db=db, user_id=user_id, habit_log=habit_log)

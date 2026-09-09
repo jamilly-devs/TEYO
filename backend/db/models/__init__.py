@@ -5,6 +5,7 @@ from db.models.finance import FinancialRecord
 from db.models.gamification import GamificationEvent, GamificationState
 from db.models.goal import Goal
 from db.models.habit import Habit, HabitLog
+from db.models.job_application import JobApplication
 from db.models.market import MarketItem
 from db.models.mascot import MascotState
 from db.models.memory import MemoryEntry
@@ -26,6 +27,7 @@ __all__ = [
     "Goal",
     "Habit",
     "HabitLog",
+    "JobApplication",
     "MarketItem",
     "MascotState",
     "MemoryEntry",

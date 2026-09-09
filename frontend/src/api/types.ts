@@ -129,3 +129,45 @@ export interface MascotState {
   unlocked_features: string[]
   updated_at: string | null
 }
+
+export type JobApplicationStatus =
+  | 'interested'
+  | 'applied'
+  | 'interviewing'
+  | 'offer'
+  | 'rejected'
+
+export interface JobApplication {
+  id: number
+  company: string
+  role: string
+  applied_on: string | null
+  status: JobApplicationStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Habit {
+  id: number
+  title: string
+  frequency_target: number
+  created_at: string
+  streak: number
+}
+
+export interface HabitLog {
+  id: number
+  habit_id: number
+  completed_at: string
+}
+
+export type PomodoroStatus = 'active' | 'paused' | 'completed'
+
+export interface PomodoroSession {
+  id: number
+  task_id: number | null
+  status: PomodoroStatus
+  started_at: string
+  ended_at: string | null
+}

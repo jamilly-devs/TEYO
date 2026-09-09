@@ -16,8 +16,12 @@ export function AppLayout() {
         <NavLink to="/">Home</NavLink>
         <NavLink to="/conversa">Conversa</NavLink>
         <NavLink to="/tasks">Tarefas</NavLink>
+        <NavLink to="/habits">Hábitos</NavLink>
         <NavLink to="/agenda">Agenda</NavLink>
         <NavLink to="/goals">Objetivos</NavLink>
+        <NavLink to="/studies">Estudos</NavLink>
+        <NavLink to="/career">Carreira</NavLink>
+        <NavLink to="/house">Casa</NavLink>
         <NavLink to="/market">Mercado</NavLink>
         <NavLink to="/finance">Finanças</NavLink>
         <button type="button" onClick={handleLogout}>

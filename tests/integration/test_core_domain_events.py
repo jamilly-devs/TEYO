@@ -7,12 +7,14 @@ import logging
 from datetime import datetime
 
 from core.domain_events import (
+    on_habit_logged,
     on_low_energy_reported,
     on_pomodoro_completed,
     on_task_completed,
 )
 from db.models.enums import PomodoroStatus, TaskStatus
 from db.models.gamification import GamificationEvent, GamificationState
+from db.models.habit import Habit, HabitLog
 from db.models.pomodoro import PomodoroSession
 from db.models.task import Task
 
@@ -71,12 +73,34 @@ def test_low_energy_hook_does_not_award_xp(db_session, user_id):
     assert db_session.query(GamificationEvent).filter_by(user_id=user_id).count() == 0
 
 
+def _habit_log(db, user_id) -> HabitLog:
+    habit = Habit(user_id=user_id, title="ler", frequency_target=3)
+    db.add(habit)
+    db.commit()
+    db.refresh(habit)
+    log = HabitLog(habit_id=habit.id, user_id=user_id, completed_at=datetime.utcnow())
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return log
+
+
+def test_habit_logged_hook_dispatches_without_error(db_session, user_id):
+    # O efeito de gamificação/mascote é coberto em test_habit_gamification.py;
+    # aqui só garantimos que o gancho novo segue o mesmo contrato (chamável,
+    # não commita, não levanta) mesmo sem subscribers específicos.
+    log = _habit_log(db_session, user_id)
+    on_habit_logged(db_session, user_id, log)
+
+
 def test_hooks_still_log_the_event(db_session, user_id, caplog):
     task = _task(db_session, user_id)
     with caplog.at_level(logging.INFO, logger="core.domain_events"):
         on_task_completed(db_session, user_id, task)
         on_low_energy_reported(db_session, user_id)
+        on_habit_logged(db_session, user_id, _habit_log(db_session, user_id))
 
     messages = " ".join(record.message for record in caplog.records)
     assert "task_completed" in messages
     assert "low_energy_reported" in messages
+    assert "habit_logged" in messages

@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from gamification import tools as gamification_tools
 from llm.base import ToolSpec
-from tools import events, finance, goals, market, memory, patterns, planner, tasks
+from tools import career, events, finance, goals, market, memory, patterns, planner, tasks
+from tools import habits as habit_tools
 from tools.base import ToolDefinition
 from tools.errors import UnknownToolError
 
@@ -45,5 +46,7 @@ def default_tool_registry() -> ToolRegistry:
             *patterns.DEFINITIONS,
             *planner.DEFINITIONS,
             *gamification_tools.DEFINITIONS,
+            *career.DEFINITIONS,
+            *habit_tools.DEFINITIONS,
         ]
     )

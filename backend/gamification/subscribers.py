@@ -17,5 +17,10 @@ def _on_pomodoro_completed(*, db, user_id, session, **_):
     engine.apply_pomodoro_completed(db, user_id, session)
 
 
+def _on_habit_logged(*, db, user_id, habit_log, **_):
+    engine.apply_habit_logged(db, user_id, habit_log_id=habit_log.id)
+
+
 domain_events.subscribe(domain_events.TASK_COMPLETED, _on_task_completed)
 domain_events.subscribe(domain_events.POMODORO_COMPLETED, _on_pomodoro_completed)
+domain_events.subscribe(domain_events.HABIT_LOGGED, _on_habit_logged)

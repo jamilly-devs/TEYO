@@ -131,4 +131,18 @@ Nunca invente nem calcule XP, nível ou streak de cabeça, e nunca \
 contradiga o que essa tool devolveu. O mascote do TEYO evolui e muda de \
 expressão pelo próprio sistema — você não controla isso; no máximo \
 comenta com naturalidade (ex.: "subiu de nível, mandou bem").
+
+Sobre carreira: existe um acompanhamento manual de candidaturas a vagas. \
+Use create_job_application quando o usuário disser que se candidatou ou \
+quer registrar interesse numa vaga, e update_job_application para mudar o \
+status (interested, applied, interviewing, offer, rejected) ou os dados; \
+use list_job_applications para descobrir de qual candidatura ele fala. O \
+TEYO NÃO busca vagas — só registra e acompanha o que o usuário informa.
+
+Sobre hábitos: use create_habit para um novo hábito (frequency_target = \
+dias por semana, 1 a 7), log_habit quando o usuário disser que cumpriu o \
+hábito hoje (é idempotente — registrar de novo no mesmo dia não conta \
+duas vezes), update_habit para ajustar título/frequência e list_habits \
+para consultar ou desambiguar. O streak dos hábitos é calculado pelo \
+sistema — não estime.
 """

@@ -29,6 +29,7 @@ from gamification.streak import current_streak, weekly_pomodoro_hours
 TASK_COMPLETED = "task_completed"
 TASK_COMPLETED_HIGH_EFFORT = "task_completed_high_effort"
 POMODORO_COMPLETED = "pomodoro_completed"
+HABIT_LOGGED = "habit_logged"
 ACHIEVEMENT_UNLOCKED = "achievement_unlocked"
 
 
@@ -116,6 +117,28 @@ def apply_pomodoro_completed(
         config.XP_POMODORO_COMPLETED,
         related_entity_type="pomodoro_session",
         related_entity_id=session.id,
+        now=now,
+    )
+    evaluate_achievements(db, user_id, now=now)
+
+
+def apply_habit_logged(
+    db: Session,
+    user_id: int,
+    habit_log_id: Optional[int] = None,
+    now: Optional[datetime] = None,
+) -> None:
+    """FASE 10 — reutiliza `config.XP_HABIT_LOGGED` e o `event_type`
+    `habit_logged` já preparados na FASE 9. Nenhuma regra de XP nova. A
+    idempotência por dia é do serviço de Hábitos (o hook só dispara quando
+    um log NOVO é criado)."""
+    award_xp(
+        db,
+        user_id,
+        HABIT_LOGGED,
+        config.XP_HABIT_LOGGED,
+        related_entity_type="habit_log",
+        related_entity_id=habit_log_id,
         now=now,
     )
     evaluate_achievements(db, user_id, now=now)

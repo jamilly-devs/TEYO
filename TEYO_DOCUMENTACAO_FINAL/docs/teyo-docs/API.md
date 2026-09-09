@@ -16,7 +16,7 @@ O frontend nunca acessa o banco ou o LLM diretamente. Toda comunicação passa p
 - `GET /tasks`, `POST /tasks`, `PATCH /tasks/{id}`, `DELETE /tasks/{id}`, `POST /tasks/{id}/complete`.
 
 ### Hábitos
-- `GET /habits`, `POST /habits`, `PATCH /habits/{id}`, `POST /habits/{id}/log`.
+- `GET /habits`, `POST /habits`, `PATCH /habits/{id}`, `POST /habits/{id}/log`. Implementados na FASE 10. `GET`/`POST`/`PATCH` retornam o hábito com `streak` (semanas seguidas batendo a frequência-alvo). `POST /{id}/log` é idempotente por dia. Sem DELETE.
 
 ### Objetivos
 - `GET /goals`, `POST /goals`, `PATCH /goals/{id}`.
@@ -30,8 +30,11 @@ O frontend nunca acessa o banco ou o LLM diretamente. Toda comunicação passa p
 ### Finanças
 - `GET /finance/records`, `POST /finance/records`.
 
-### Estudos, Carreira, Casa
-- Endpoints equivalentes de CRUD conforme dados definidos em `MODULES/STUDIES.md`, `MODULES/CAREER.md`, `MODULES/HOUSE.md` (nome de módulo mantido como "Casa" conforme decisão de produto; arquivo de módulo nomeado `MODULES/HOUSE.md` neste pacote por consistência de nomenclatura técnica em inglês — ver nota em `DOCUMENTATION_AUDIT.md`).
+### Estudos, Casa
+- **Sem endpoints próprios** (DECIDIDO na FASE 10). São visões filtradas de Tarefas por `category` (`studies` / `house`); o frontend consome `GET /tasks` e filtra. Nenhum CRUD paralelo.
+
+### Carreira
+- `GET /career/applications`, `POST /career/applications`, `PATCH /career/applications/{id}`. Implementados na FASE 10 — acompanhamento manual de candidaturas. Sem DELETE (como Objetivos). Sem endpoint de busca de vagas.
 
 ### Planejamento
 - `GET /planner/daily-plan`
@@ -46,11 +49,12 @@ O frontend nunca acessa o banco ou o LLM diretamente. Toda comunicação passa p
 - `PATCH /mascot/color` — única personalização visual do usuário; valida hex, 422 se inválido.
 
 ### Pomodoro
-- Sem endpoints na FASE 9 (decisão: não construir o módulo de Pomodoro, que não tem `MODULES/POMODORO.md` próprio). O hook `on_pomodoro_completed` já credita XP/conquistas quando um produtor futuro o chamar. Ver `DOCUMENTATION_AUDIT.md` (FASE 9).
+- Implementado na FASE 10 (ver `MODULES/POMODORO.md`): `POST /pomodoro/sessions`, `GET /pomodoro/sessions/active`, `POST /pomodoro/sessions/{id}/pause`, `.../resume`, `.../complete`.
+- **Exceção à regra geral abaixo**: Pomodoro **não** tem tool de LLM 1:1 (DT-9) — é experiência de timer/UI. Registrado no `DOCUMENTATION_AUDIT.md` (FASE 10).
 
 ## Regra geral
 
-Todo endpoint que altera dados corresponde a exatamente uma tool usada pelo LLM (ver `TOOLS.md`), para que a mesma ação seja possível tanto pela tela quanto pela conversa, com a mesma validação de regras de negócio.
+Todo endpoint que altera dados corresponde a exatamente uma tool usada pelo LLM (ver `TOOLS.md`), para que a mesma ação seja possível tanto pela tela quanto pela conversa, com a mesma validação de regras de negócio. **Exceção documentada:** os endpoints de Pomodoro (FASE 10) não têm tool correspondente.
 
 ## Fora do V1
 

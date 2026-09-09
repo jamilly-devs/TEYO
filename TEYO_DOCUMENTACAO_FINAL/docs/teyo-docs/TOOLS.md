@@ -84,6 +84,19 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 - Retorno: `{ xp_total, level, xp_into_level, xp_for_next_level, streak_days, achievements: [{code, title, description, unlocked_at}] }` — tudo já calculado pelo sistema (`gamification_state`/`gamification_events`/`achievements`).
 - Quando chamar: usuário pergunta sobre nível/XP/streak/conquistas, ou o TEYO vai comentar uma evolução. O LLM **nunca** estima nem calcula esses números (`BUSINESS_RULES.md` #6/#7, `GAMIFICATION.md`). Não existe tool de escrita de gamificação — XP/nível são só do sistema.
 
+## create_habit / update_habit / list_habits / log_habit
+- Adicionadas na FASE 10 (`MODULES/HABITS.md`). Padrão das demais tools; reaproveitam `api/schemas/habit.py`.
+- `create_habit`: obrigatórios `title`, `frequency_target` (inteiro 1–7 = dias por semana). `update_habit`: obrigatório `habit_id`; opcionais `title`, `frequency_target`. `list_habits`: sem parâmetros; retorna cada hábito com `streak` (semanas seguidas batendo a frequência-alvo, calculado pelo sistema).
+- `log_habit`: obrigatório `habit_id`. Registra o cumprimento do hábito hoje. **Idempotente por dia**: se já houver registro do hábito hoje, não cria outro nem concede XP de novo (`already_logged_today: true` no retorno). Dispara `on_habit_logged` → gamificação credita `XP_HABIT_LOGGED` (regra da FASE 9, não reimplementada aqui). Sem `delete_habit`.
+
+## create_job_application / update_job_application / list_job_applications
+- Adicionadas na FASE 10 (`MODULES/CAREER.md`) — acompanhamento **manual** de candidaturas. Padrão de `create_goal`/`update_goal`.
+- `create_job_application`: obrigatórios `company`, `role`; opcionais `applied_on` (data ISO), `notes`. `update_job_application`: obrigatório `application_id`; opcionais `company`, `role`, `applied_on`, `notes`, `status` (`interested`/`applied`/`interviewing`/`offer`/`rejected`). `list_job_applications`: sem parâmetros.
+- **Não** existe tool de busca de vagas; o TEYO nunca busca vagas nem usa API paga de LLM para isso. Sem `delete`.
+
+## Pomodoro — sem tool (DECIDIDO na FASE 10)
+- Os endpoints de Pomodoro (`MODULES/POMODORO.md`) **não** têm tool 1:1 correspondente (DT-9): é experiência de timer/UI em tempo real. Exceção documentada à regra 1:1 de `API.md`. O TEYO só toma conhecimento de um Pomodoro concluído pelo evento de gamificação, não inicia/controla sessões.
+
 ## Regras gerais de todas as tools (DECIDIDO)
 
 - Toda tool valida os parâmetros recebidos antes de executar; parâmetro obrigatório ausente é erro (ver `ERROR_HANDLING.md`), nunca é inferido pelo LLM sem confirmação do usuário.

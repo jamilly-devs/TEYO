@@ -33,7 +33,14 @@ def _on_achievement_unlocked(*, db, user_id, **_):
     engine.set_expression(db, user_id, "celebrating")
 
 
+def _on_habit_logged(*, db, user_id, **_):
+    # DT-3: hábito registrado é atividade positiva, mesma reação de
+    # `task_completed`.
+    engine.set_expression(db, user_id, "happy")
+
+
 domain_events.subscribe(domain_events.TASK_COMPLETED, _on_task_completed)
 domain_events.subscribe(domain_events.LOW_ENERGY_REPORTED, _on_low_energy_reported)
 domain_events.subscribe(domain_events.LEVEL_UP, _on_level_up)
 domain_events.subscribe(domain_events.ACHIEVEMENT_UNLOCKED, _on_achievement_unlocked)
+domain_events.subscribe(domain_events.HABIT_LOGGED, _on_habit_logged)

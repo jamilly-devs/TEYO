@@ -74,3 +74,15 @@ class PomodoroStatus(str, enum.Enum):
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
+
+
+class JobApplicationStatus(str, enum.Enum):
+    """Fluxo simples de candidatura (MODULES/CAREER.md, FASE 10). Valores em
+    inglês minúsculo, no mesmo padrão de GoalStatus/TaskStatus; os rótulos
+    em português ficam no frontend."""
+
+    INTERESTED = "interested"
+    APPLIED = "applied"
+    INTERVIEWING = "interviewing"
+    OFFER = "offer"
+    REJECTED = "rejected"

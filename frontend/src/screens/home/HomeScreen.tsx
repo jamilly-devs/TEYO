@@ -274,8 +274,12 @@ function ModuleShortcuts() {
       <h2>Módulos</h2>
       <nav>
         <Link to="/tasks">Tarefas</Link>
+        <Link to="/habits">Hábitos</Link>
         <Link to="/agenda">Agenda</Link>
         <Link to="/goals">Objetivos</Link>
+        <Link to="/studies">Estudos</Link>
+        <Link to="/career">Carreira</Link>
+        <Link to="/house">Casa</Link>
         <Link to="/market">Mercado</Link>
         <Link to="/finance">Finanças</Link>
       </nav>

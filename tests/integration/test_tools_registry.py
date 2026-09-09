@@ -41,6 +41,13 @@ def test_registry_exposes_a_spec_for_every_registered_tool():
         "get_daily_plan",
         "reorganize_day",
         "get_gamification_state",
+        "create_job_application",
+        "update_job_application",
+        "list_job_applications",
+        "create_habit",
+        "update_habit",
+        "list_habits",
+        "log_habit",
     }
 
 
@@ -81,6 +88,13 @@ def test_destructive_actions_are_flagged_for_confirmation(name):
         "get_daily_plan",
         "reorganize_day",
         "get_gamification_state",
+        "create_job_application",
+        "update_job_application",
+        "list_job_applications",
+        "create_habit",
+        "update_habit",
+        "list_habits",
+        "log_habit",
     ],
 )
 def test_non_destructive_actions_are_not_flagged(name):

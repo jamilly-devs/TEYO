@@ -4,8 +4,9 @@
 
 - **Home**: dashboard e ponto de entrada.
 - **Conversa TEYO**: uma única conversa principal, acessível pela Home.
-- **Módulos V1 com tela própria**: Tarefas, Hábitos, Objetivos, Estudos, Carreira, Finanças, Mercado, Casa e Agenda, conforme sua complexidade.
-- **Pomodoro**: experiência associada às tarefas; não é obrigatório.
+- **Módulos V1 com tela própria** (FASE 10): Tarefas, **Hábitos**, Objetivos, **Carreira**, Finanças, Mercado e Agenda.
+- **Estudos e Casa** (DECIDIDO na FASE 10): **visões filtradas de Tarefas** por categoria (`studies` / `house`) — têm rota e atalho, mas não são telas/CRUD próprios.
+- **Pomodoro**: experiência de timer associada a uma tarefa (`pomodoro_enabled`); **sem item de menu** e sem tool de LLM.
 - **Gamificação/Mascote**: componentes transversais da experiência, não módulos equivalentes aos módulos de negócio.
 
 ## Hierarquia da Home

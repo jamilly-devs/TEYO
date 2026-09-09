@@ -34,7 +34,8 @@ Justificativa: módulo Hábitos.
 ## habit_logs
 Justificativa: histórico necessário para o Motor de Padrões.
 - `id` (PK), `habit_id` (FK habits), `user_id` (FK)
-- `completed_at`, `context` (JSON, ex.: horário, dia da semana)
+- `completed_at`, `context` (JSON) — na FASE 10 `log_habit` grava `{"hour": <0-23>, "weekday": <0-6>}`; o Motor de Padrões continua sem consumir isso nesta versão.
+- FASE 10: um log por (hábito, dia local) — a idempotência é do serviço de Hábitos, não uma constraint.
 
 ## goals
 Justificativa: módulo Objetivos, referenciado por tasks.
@@ -104,6 +105,20 @@ Justificativa: memória permanente/estruturada do usuário (distinta do históri
 Justificativa: base para relatórios e para o planejador usar horários de maior produtividade.
 - `id` (PK), `user_id` (FK)
 - `task_id` (FK tasks, nullable), `started_at`, `ended_at`, `focus_score` (A DEFINIR se existe)
+- FASE 10: **sem escritor**. O Pomodoro persiste só em `pomodoro_sessions` (DT-8); `productivity_logs`/`focus_score` seguem para V2+ (Relatórios).
+
+## pomodoro_sessions
+Justificativa: sessões de foco do Pomodoro (fonte única — DT-8).
+- `id` (PK), `user_id` (FK), `task_id` (FK tasks, nullable)
+- `status` (enum: `active`, `paused`, `completed`), `started_at`, `ended_at` (nullable), `created_at`
+- FASE 10: escritor é `backend/pomodoro/service.py`; a conclusão passa por `backend/core/pomodoro_completion.py`. Só sessões de foco (sem coluna de tipo). Índices `(user_id, status)`, `(task_id)`.
+
+## job_applications
+Justificativa: acompanhamento **manual** de candidaturas a vagas (módulo Carreira, FASE 10). `DATABASE.md` até a FASE 9 não previa tabela de carreira.
+- `id` (PK), `user_id` (FK users)
+- `company`, `role`, `applied_on` (Date, nullable — data da candidatura)
+- `status` (enum: `interested`, `applied`, `interviewing`, `offer`, `rejected` — default `interested`)
+- `notes` (Text, nullable), `created_at`, `updated_at`; índice `(user_id)`
 
 ## gamification_state
 Justificativa: XP/nível pertence ao sistema, não ao LLM.
@@ -113,7 +128,7 @@ Justificativa: XP/nível pertence ao sistema, não ao LLM.
 ## gamification_events
 - `id` (PK), `user_id` (FK)
 - `event_type`, `xp_delta`, `related_entity_type`, `related_entity_id`, `created_at`
-- Vocabulário de `event_type` (FASE 9, `backend/gamification/config.py`): `task_completed`, `task_completed_high_effort` (bônus), `pomodoro_completed`, `achievement_unlocked`, `habit_logged` (reservado). `related_entity_type` ∈ `task` / `pomodoro_session` / `achievement`.
+- Vocabulário de `event_type`: `task_completed`, `task_completed_high_effort` (bônus), `pomodoro_completed`, `achievement_unlocked`, `habit_logged` (ativo a partir da FASE 10). `related_entity_type` ∈ `task` / `pomodoro_session` / `achievement` / `habit_log`.
 
 ## achievements
 Justificativa: conjunto de conquistas já desbloqueadas por usuário (estado "desbloqueado atual", distinto do log em `gamification_events`). Acrescentada na FASE 9 — `GAMIFICATION.md` decidia a feature "conquistas" mas o schema até a FASE 8 não a previa.

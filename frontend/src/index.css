@@ -367,3 +367,30 @@ li {
     transition: none;
   }
 }
+
+/* ---- FASE 10: Hábitos / Carreira / Pomodoro ---- */
+
+.habit-row .habit-streak,
+.career-row select {
+  margin-left: 4px;
+}
+
+.pomodoro-timer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--muted-bg);
+}
+
+.pomodoro-timer [role='timer'] {
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-h);
+}
