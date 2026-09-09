@@ -28,6 +28,9 @@ export default defineConfig({
       '/goals': BACKEND_URL,
       '/market': BACKEND_URL,
       '/finance': BACKEND_URL,
+      '/planner': BACKEND_URL,
+      '/gamification': BACKEND_URL,
+      '/mascot': BACKEND_URL,
       // A resposta do LLM local pode levar bem mais que o padrão do proxy
       // (benchmark real: ~1-20s conforme o pedido) — timeout maior só aqui.
       '/conversation': { target: BACKEND_URL, timeout: 65000, proxyTimeout: 65000 },

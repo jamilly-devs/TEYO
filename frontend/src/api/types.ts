@@ -79,3 +79,53 @@ export interface ConversationMessage {
   content: string
   created_at: string
 }
+
+export type DayPeriod = 'madrugada' | 'manhã' | 'tarde' | 'noite'
+
+export interface DailyPlanItem {
+  kind: 'task' | 'event'
+  id: number
+  title: string
+  period: DayPeriod | null
+  start_at: string | null
+  priority: TaskPriority | null
+  reason: string | null
+  suggested_due_date: string | null
+}
+
+export interface DailyPlan {
+  date: string
+  items: DailyPlanItem[]
+}
+
+export interface Achievement {
+  code: string
+  title: string
+  description: string
+  unlocked_at: string
+}
+
+export interface GamificationState {
+  xp_total: number
+  level: number
+  xp_into_level: number
+  xp_for_next_level: number
+  streak_days: number
+  achievements: Achievement[]
+}
+
+export type MascotExpression =
+  | 'idle'
+  | 'happy'
+  | 'proud'
+  | 'celebrating'
+  | 'caring'
+  | 'tired'
+
+export interface MascotState {
+  evolution_stage: number
+  current_expression: MascotExpression
+  color: string
+  unlocked_features: string[]
+  updated_at: string | null
+}

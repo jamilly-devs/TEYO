@@ -1,19 +1,24 @@
-"""Ganchos de domínio — o único ponto onde a FASE 9 (Gamificação e
-Mascote) se liga a acontecimentos do usuário.
+"""Ganchos de domínio + despachante síncrono de eventos.
 
-Decisão de integração FASE 8/FASE 9: em vez de a FASE 9 ter que reabrir
-`tools/tasks.py`, `api/routers/tasks.py`, `tools/planner.py` e o
-Orquestrador para plugar XP/expressão do mascote, esses fluxos já chamam
-os ganchos abaixo agora. Nesta fase os ganchos **não têm efeito** — só
-registram log. NÃO implementar XP, nível, conquista, `gamification_*` ou
-`mascot_*` aqui: isso é FASE 9 (GAMIFICATION.md, MASCOT.md).
+É o único ponto onde a FASE 9 (Gamificação e Mascote) se liga a
+acontecimentos do usuário. A FASE 8 criou as três funções `on_*` como
+costura (só logavam); a FASE 9 ativa um despachante: cada `on_*`
+distribui o evento para os *subscribers* registrados (gamificação,
+mascote). Assim os fluxos de tarefa/planejador/etc. **não** precisam
+conhecer XP/mascote — continuam só chamando `on_*`.
 
-Contrato para a FASE 9: os ganchos recebem `db` para poderem persistir
-sem mudar a assinatura, mas **não devem** dar `commit`/`rollback` — quem
-chama é dono da transação (mesma regra das tools em ARCHITECTURE.md)."""
+Regras (mantidas da FASE 8):
+- As assinaturas de `on_task_completed` / `on_pomodoro_completed` /
+  `on_low_energy_reported` **não mudam**.
+- Nenhum subscriber deve dar `commit`/`rollback` — quem originou a ação é
+  dono da transação (ARCHITECTURE.md).
+- Um subscriber que levanta exceção **nunca** quebra a ação de origem:
+  `_dispatch` isola cada um com try/except + log `WARNING`. Trade-off
+  registrado em DOCUMENTATION_AUDIT.md: falha de gamificação é silenciosa
+  para o usuário (aceitável no V1 — gamificação não é crítica)."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from sqlalchemy.orm import Session
 
@@ -23,17 +28,59 @@ if TYPE_CHECKING:  # evita import circular em runtime; só para type hints
 
 logger = logging.getLogger(__name__)
 
+# Nomes de evento distribuídos pelo despachante. Os três primeiros são os
+# eventos "crus" (origem: tools/endpoints); os demais são derivados,
+# emitidos pela própria gamificação para o mascote reagir já com o
+# nível/conquista persistidos.
+TASK_COMPLETED = "task_completed"
+POMODORO_COMPLETED = "pomodoro_completed"
+LOW_ENERGY_REPORTED = "low_energy_reported"
+LEVEL_UP = "level_up"
+ACHIEVEMENT_UNLOCKED = "achievement_unlocked"
+
+Subscriber = Callable[..., None]
+
+_subscribers: dict[str, list[Subscriber]] = {}
+
+
+def subscribe(event_name: str, fn: Subscriber) -> None:
+    """Registra `fn` para `event_name`. Idempotente por identidade de
+    função — importar o módulo de subscribers duas vezes não duplica."""
+    handlers = _subscribers.setdefault(event_name, [])
+    if fn not in handlers:
+        handlers.append(fn)
+
+
+def clear_subscribers() -> None:
+    """Só para testes que precisam isolar o registro."""
+    _subscribers.clear()
+
+
+def emit(event_name: str, **payload: Any) -> None:
+    """Distribui um evento para todos os subscribers registrados. Cada
+    subscriber roda isolado: sua falha é logada e não interrompe os
+    demais nem a ação de origem."""
+    for fn in list(_subscribers.get(event_name, ())):
+        try:
+            fn(**payload)
+        except Exception:  # noqa: BLE001 — isolamento deliberado (ver docstring do módulo)
+            logger.warning(
+                "subscriber %s falhou para o evento '%s'",
+                getattr(fn, "__qualname__", repr(fn)),
+                event_name,
+                exc_info=True,
+            )
+
+
+_dispatch = emit
+
 
 def on_task_completed(db: Session, user_id: int, task: "Task") -> None:
     """Ponto único de "tarefa concluída" (chamado por
-    `core.task_completion.complete_task`, que por sua vez cobre os quatro
-    caminhos: tools e REST, `complete_task` e `update_task` com
-    `status=done`).
-
-    FASE 8: sem efeito. FASE 9 liga aqui o evento de XP
-    (`gamification_events`) e a possível reação do mascote citados em
-    TOOLS.md."""
+    `core.task_completion.complete_task`, que cobre os quatro caminhos:
+    tools e REST, `complete_task` e `update_task` com `status=done`)."""
     logger.info("domain_event=task_completed user_id=%s task_id=%s", user_id, task.id)
+    _dispatch(TASK_COMPLETED, db=db, user_id=user_id, task=task)
 
 
 def on_pomodoro_completed(
@@ -41,21 +88,23 @@ def on_pomodoro_completed(
 ) -> None:
     """Ponto único de "sessão de Pomodoro concluída".
 
-    Definido agora para a FASE 9 não precisar reabrir o fluxo, mas **ainda
-    sem chamador**: não existe módulo de Pomodoro (`pomodoro_sessions` não
-    tem escritor no código). Quando o Pomodoro for construído, é este o
-    gancho que a conclusão da sessão deve chamar. FASE 8: sem efeito."""
+    A FASE 9 liga a gamificação a este gancho, mas **não cria um módulo de
+    Pomodoro**: `pomodoro_sessions` continua sem escritor de produção. O
+    caminho é exercitado por teste chamando o gancho direto; quando o
+    módulo de Pomodoro existir, é aqui que a conclusão da sessão entra."""
     logger.info(
         "domain_event=pomodoro_completed user_id=%s session_id=%s", user_id, session.id
     )
+    _dispatch(POMODORO_COMPLETED, db=db, user_id=user_id, session=session)
 
 
 def on_low_energy_reported(db: Session, user_id: int) -> None:
-    """Sinal observável de que o usuário relatou baixa energia — disparado
-    por `reorganize_day` (tool e endpoint) quando `energy_level == "low"`.
+    """Sinal de que o usuário relatou baixa energia — disparado por
+    `reorganize_day` (tool e endpoint) quando `energy_level == "low"`.
 
-    FASE 8: sem efeito, sem gravar nada (não há tabela de energia e
-    `gamification_*` está fora de escopo) — só log. FASE 9 usa este sinal
-    para a expressão acolhedora do mascote (MASCOT.md: "usuário cansado →
-    expressão acolhedora")."""
+    FASE 9: o subscriber do mascote entra em expressão acolhedora
+    (MASCOT.md). Não concede XP (não é atividade nem conquista). Como o
+    mascote persiste `mascot_state`, os pontos que chamam este gancho
+    fazem `db.commit()` logo depois."""
     logger.info("domain_event=low_energy_reported user_id=%s", user_id)
+    _dispatch(LOW_ENERGY_REPORTED, db=db, user_id=user_id)

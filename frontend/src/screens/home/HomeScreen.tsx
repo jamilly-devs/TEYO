@@ -4,23 +4,19 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../api/client'
 import { conversationApi } from '../../api/conversation'
 import { eventsApi } from '../../api/events'
-import { tasksApi } from '../../api/tasks'
+import { gamificationApi } from '../../api/gamification'
+import { mascotApi } from '../../api/mascot'
+import { plannerApi } from '../../api/planner'
+import type {
+  DailyPlan,
+  Event,
+  GamificationState,
+  MascotState,
+} from '../../api/types'
 import type { ApiResource } from '../../state/useApiResource'
 import { useApiResource } from '../../state/useApiResource'
-import type { Event, Task } from '../../api/types'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenStates'
-
-function todayDateString(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function isToday(isoDateTime: string): boolean {
-  return isoDateTime.slice(0, 10) === todayDateString()
-}
+import { Mascot } from '../../components/Mascot'
 
 function ConversationBlock() {
   const navigate = useNavigate()
@@ -66,64 +62,173 @@ function ConversationBlock() {
   )
 }
 
-function ProgressBlock() {
-  // Os números de progresso vêm do Motor de Padrões / cálculos de sistema
-  // (FASE 7+), que ainda não existem — por decisão de Jams, este bloco fica
-  // em estado vazio até haver dado real, sem fórmula provisória inventada.
+function toHex6(color: string): string {
+  const short = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(color)
+  if (short) {
+    const [, r, g, b] = short
+    return `#${r}${r}${g}${g}${b}${b}`
+  }
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#7c5cff'
+}
+
+function MascotColorPicker({
+  current,
+  onUpdated,
+}: {
+  current: string
+  onUpdated: (state: MascotState) => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function change(color: string) {
+    setSaving(true)
+    setError(null)
+    try {
+      onUpdated(await mascotApi.setColor(color))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não consegui salvar a cor.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
-    <section className="home-block progress-block">
-      <h2>Progresso</h2>
-      <EmptyState message="Ainda não há dados de progresso disponíveis." />
-    </section>
+    <>
+      <label className="mascot-color">
+        Cor do TEYO
+        <input
+          type="color"
+          value={toHex6(current)}
+          disabled={saving}
+          onChange={(e) => change(e.target.value)}
+        />
+      </label>
+      {error && <p role="alert">{error}</p>}
+    </>
   )
 }
 
-function DailyPlanBlock({
-  tasksResource,
-  eventsResource,
+function ProgressContent({
+  gamification,
+  mascot,
+  onMascotUpdated,
 }: {
-  tasksResource: ApiResource<Task[]>
-  eventsResource: ApiResource<Event[]>
+  gamification: GamificationState
+  mascot: MascotState
+  onMascotUpdated: (state: MascotState) => void
 }) {
-  const loading = tasksResource.status === 'loading' || eventsResource.status === 'loading'
-  const errorMessage = tasksResource.error ?? eventsResource.error
+  const pct =
+    gamification.xp_for_next_level > 0
+      ? Math.min(100, Math.round((gamification.xp_into_level / gamification.xp_for_next_level) * 100))
+      : 0
+  const streakLabel = `${gamification.streak_days} ${
+    gamification.streak_days === 1 ? 'dia' : 'dias'
+  } seguidos`
 
   return (
-    <section className="home-block daily-plan-block">
-      <h2>Plano do dia</h2>
+    <div className="progress-head">
+      <Mascot
+        stage={mascot.evolution_stage}
+        expression={mascot.current_expression}
+        color={mascot.color}
+        unlockedFeatures={mascot.unlocked_features}
+      />
+      <div className="progress-stats">
+        <p className="level-line">
+          <strong>Nível {gamification.level}</strong>
+          <span className="badge">{streakLabel}</span>
+        </p>
+        <div className="xp-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+          <span style={{ width: `${pct}%` }} />
+        </div>
+        <p>
+          {gamification.xp_into_level} / {gamification.xp_for_next_level} XP para o nível{' '}
+          {gamification.level + 1}
+        </p>
+        {gamification.achievements.length > 0 && (
+          <ul className="achievements">
+            {gamification.achievements.map((achievement) => (
+              <li key={achievement.code} className="badge" title={achievement.description}>
+                {achievement.title}
+              </li>
+            ))}
+          </ul>
+        )}
+        <MascotColorPicker current={mascot.color} onUpdated={onMascotUpdated} />
+      </div>
+    </div>
+  )
+}
+
+function ProgressBlock({
+  gamificationResource,
+  mascotResource,
+}: {
+  gamificationResource: ApiResource<GamificationState>
+  mascotResource: ApiResource<MascotState>
+}) {
+  const loading =
+    gamificationResource.status === 'loading' || mascotResource.status === 'loading'
+  const errorMessage = gamificationResource.error ?? mascotResource.error
+
+  return (
+    <section className="home-block progress-block">
+      <h2>Progresso</h2>
       {loading && <LoadingState />}
       {!loading && errorMessage && (
         <ErrorState
           message={errorMessage}
           onRetry={() => {
-            tasksResource.reload()
-            eventsResource.reload()
+            gamificationResource.reload()
+            mascotResource.reload()
           }}
         />
       )}
-      {!loading && !errorMessage && (
-        <DailyPlanList tasks={tasksResource.data ?? []} events={eventsResource.data ?? []} />
+      {!loading && !errorMessage && gamificationResource.data && mascotResource.data && (
+        <ProgressContent
+          gamification={gamificationResource.data}
+          mascot={mascotResource.data}
+          onMascotUpdated={mascotResource.setData}
+        />
       )}
     </section>
   )
 }
 
-function DailyPlanList({ tasks, events }: { tasks: Task[]; events: Event[] }) {
-  const todaysTasks = tasks.filter((task) => task.due_date && isToday(task.due_date))
-  const todaysEvents = events.filter((event) => isToday(event.start_at))
+function DailyPlanBlock({ planResource }: { planResource: ApiResource<DailyPlan> }) {
+  return (
+    <section className="home-block daily-plan-block">
+      <h2>Plano do dia</h2>
+      {planResource.status === 'loading' && <LoadingState />}
+      {planResource.status === 'error' && planResource.error && (
+        <ErrorState message={planResource.error} onRetry={planResource.reload} />
+      )}
+      {planResource.status === 'success' && planResource.data && (
+        <DailyPlanList plan={planResource.data} />
+      )}
+    </section>
+  )
+}
 
-  if (todaysTasks.length === 0 && todaysEvents.length === 0) {
-    return <EmptyState message="Nada agendado para hoje." />
+function DailyPlanList({ plan }: { plan: DailyPlan }) {
+  if (plan.items.length === 0) {
+    return <EmptyState message="Nada no plano de hoje." />
   }
 
   return (
     <ul>
-      {todaysTasks.map((task) => (
-        <li key={`task-${task.id}`}>Tarefa: {task.title}</li>
-      ))}
-      {todaysEvents.map((event) => (
-        <li key={`event-${event.id}`}>
-          Compromisso: {event.title} ({event.start_at})
+      {plan.items.map((item) => (
+        <li key={`${item.kind}-${item.id}`}>
+          <span className="badge">{item.kind === 'event' ? 'Compromisso' : 'Tarefa'}</span>
+          <span>{item.title}</span>
+          {item.start_at && <span className="badge">{item.start_at.slice(11, 16)}</span>}
+          {!item.start_at && item.period && <span className="badge">{item.period}</span>}
+          {item.reason && (
+            <span className="badge" title={item.reason}>
+              sugestão: adiar
+            </span>
+          )}
         </li>
       ))}
     </ul>
@@ -179,14 +284,21 @@ function ModuleShortcuts() {
 }
 
 export function HomeScreen() {
-  const tasksResource = useApiResource(tasksApi.list)
+  // Hierarquia da Home (NAVIGATION.md / MODULES/HOME.md):
+  // 1) conversa  2) progresso (nível + mascote)  3) plano do dia  4) resto.
+  const planResource = useApiResource(plannerApi.dailyPlan)
   const eventsResource = useApiResource(eventsApi.list)
+  const gamificationResource = useApiResource(gamificationApi.state)
+  const mascotResource = useApiResource(mascotApi.state)
 
   return (
     <div className="home-screen">
       <ConversationBlock />
-      <ProgressBlock />
-      <DailyPlanBlock tasksResource={tasksResource} eventsResource={eventsResource} />
+      <ProgressBlock
+        gamificationResource={gamificationResource}
+        mascotResource={mascotResource}
+      />
+      <DailyPlanBlock planResource={planResource} />
       <AgendaPreviewBlock eventsResource={eventsResource} />
       <ModuleShortcuts />
     </div>

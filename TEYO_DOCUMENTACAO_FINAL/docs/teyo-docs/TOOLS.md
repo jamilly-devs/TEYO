@@ -20,7 +20,7 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 
 ## complete_task
 - Parâmetros obrigatórios: `task_id`.
-- Efeito colateral: dispara evento de gamificação (`gamification_events`) e possível atualização de `mascot_state`. NECESSÁRIO PARA IMPLEMENTAÇÃO: esse efeito colateral é FASE 9 (`GAMIFICATION.md`, `MASCOT.md`); na FASE 5, `complete_task` apenas marca a tarefa como concluída, sem nenhum efeito de XP/mascote.
+- Efeito colateral: dispara evento de gamificação (`gamification_events`) e atualização de `mascot_state`. Implementado na FASE 9 via o hook de domínio `on_task_completed` (FASE 8) — os quatro caminhos de conclusão de tarefa (tool `complete_task`, tool `update_task` com `status=done`, `POST /tasks/{id}/complete`, `PATCH /tasks/{id}`) passam pelo mesmo ponto (`core.task_completion`), sem lógica de XP espalhada. O retorno da tool **não** ganha campos de XP/mascote (contrato preservado); quem quer os números chama `get_gamification_state` / `GET /mascot/state`.
 
 ## create_event / update_event / delete_event
 - Mesma estrutura de `tasks`, aplicada a `events`. `delete_event` exige confirmação.
@@ -78,6 +78,11 @@ Formato de especificação por tool: nome, finalidade, parâmetros obrigatórios
 
 ## get_routine_changes
 - Retorno: mudanças de rotina detectadas com confiança acima do limiar (70%, confirmado com Jams na FASE 7 — ver `PATTERN_ENGINE.md`), para o TEYO poder comentar proativamente ("Percebi que ultimamente...").
+
+## get_gamification_state
+- Adicionada na FASE 9. Sem parâmetros (usa `user_id` da sessão). Só leitura.
+- Retorno: `{ xp_total, level, xp_into_level, xp_for_next_level, streak_days, achievements: [{code, title, description, unlocked_at}] }` — tudo já calculado pelo sistema (`gamification_state`/`gamification_events`/`achievements`).
+- Quando chamar: usuário pergunta sobre nível/XP/streak/conquistas, ou o TEYO vai comentar uma evolução. O LLM **nunca** estima nem calcula esses números (`BUSINESS_RULES.md` #6/#7, `GAMIFICATION.md`). Não existe tool de escrita de gamificação — XP/nível são só do sistema.
 
 ## Regras gerais de todas as tools (DECIDIDO)
 

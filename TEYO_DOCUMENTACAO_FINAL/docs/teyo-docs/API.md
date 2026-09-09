@@ -41,9 +41,12 @@ O frontend nunca acessa o banco ou o LLM diretamente. Toda comunicação passa p
 - `GET /patterns` (uso interno do Orquestrador, não necessariamente exposto ao frontend no V1)
 
 ### Gamificação / Mascote
-- `GET /gamification/state`
-- `GET /mascot/state`
-- `PATCH /mascot/color`
+- `GET /gamification/state` — implementado na FASE 9 (nível, XP, streak, conquistas).
+- `GET /mascot/state` — estágio (derivado do nível), expressão, cor, `unlocked_features`.
+- `PATCH /mascot/color` — única personalização visual do usuário; valida hex, 422 se inválido.
+
+### Pomodoro
+- Sem endpoints na FASE 9 (decisão: não construir o módulo de Pomodoro, que não tem `MODULES/POMODORO.md` próprio). O hook `on_pomodoro_completed` já credita XP/conquistas quando um produtor futuro o chamar. Ver `DOCUMENTATION_AUDIT.md` (FASE 9).
 
 ## Regra geral
 

@@ -38,11 +38,13 @@ def reorganize_day(db: Session, user_id: int, arguments: dict[str, Any]) -> dict
     energy_level: Optional[str] = arguments.get("energy_level")
     plan = compute_reorganized_plan(db, user, energy_level=energy_level)
     if energy_level == "low":
-        # Sinal observável de baixa energia. FASE 8: só log; FASE 9 usa
-        # para a expressão acolhedora do mascote (MASCOT.md). Disparado
-        # aqui e no endpoint REST — o sinal não depende do ponto de
+        # Sinal de baixa energia. FASE 9: o subscriber do mascote entra em
+        # expressão acolhedora (MASCOT.md) e persiste `mascot_state` — daí
+        # o commit aqui ("quem chama é dono da transação", regra FASE 8).
+        # Disparado na tool e no endpoint REST, sem depender do ponto de
         # entrada. Não altera o retorno da tool (contrato de TOOLS.md).
         on_low_energy_reported(db, user_id)
+        db.commit()
     return serialize_plan(plan)
 
 

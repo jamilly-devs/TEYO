@@ -15,3 +15,7 @@
 ## Dashboard de atividade (DECIDIDO, doc. 3, item 6)
 
 Deve mostrar: dias mantendo a rotina, porcentagem de atividades realizadas, tarefas concluídas, progresso geral — combinando dados de tarefas de casa, carreira/vagas, estudos, hábitos, objetivos e outras atividades cadastradas. Os números vêm do sistema (Relatórios), nunca são estimados pelo LLM.
+
+### Bloco de Progresso na FASE 9
+
+O bloco de Progresso deixou de ser um placeholder vazio: consome `GET /gamification/state` (nível, barra de XP, streak, conquistas) e `GET /mascot/state` (mascote com expressão/estágio/cor + seletor de cor — única personalização). O bloco "Plano do dia" passou a consumir `GET /planner/daily-plan` (ordenação do sistema, `PLANNER.md`), substituindo o filtro client-side ingênuo por "é hoje?" da FASE 3 (pendência registrada na FASE 8). Hierarquia mantida: conversa → progresso → plano do dia → agenda/demais.

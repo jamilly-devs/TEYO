@@ -113,14 +113,23 @@ Justificativa: XP/nível pertence ao sistema, não ao LLM.
 ## gamification_events
 - `id` (PK), `user_id` (FK)
 - `event_type`, `xp_delta`, `related_entity_type`, `related_entity_id`, `created_at`
+- Vocabulário de `event_type` (FASE 9, `backend/gamification/config.py`): `task_completed`, `task_completed_high_effort` (bônus), `pomodoro_completed`, `achievement_unlocked`, `habit_logged` (reservado). `related_entity_type` ∈ `task` / `pomodoro_session` / `achievement`.
+
+## achievements
+Justificativa: conjunto de conquistas já desbloqueadas por usuário (estado "desbloqueado atual", distinto do log em `gamification_events`). Acrescentada na FASE 9 — `GAMIFICATION.md` decidia a feature "conquistas" mas o schema até a FASE 8 não a previa.
+- `id` (PK), `user_id` (FK users)
+- `code` (string — referencia o catálogo em `backend/gamification/config.py`)
+- `unlocked_at`
+- `UNIQUE (user_id, code)` — cada conquista desbloqueia uma única vez; índice `(user_id)`
 
 ## mascot_state
 Justificativa: evolução visual e cor pertencem ao sistema.
 - `user_id` (PK/FK)
-- `color` (customizável pelo usuário — DECIDIDO)
-- `evolution_stage` (enum pré-definido pelo sistema — DECIDIDO, valores exatos A DEFINIR)
-- `current_expression` (enum, calculado por eventos do sistema)
+- `color` (customizável pelo usuário — DECIDIDO; única personalização)
+- `evolution_stage` (inteiro; FASE 9: cache — a verdade é `catalog.stage_for_level(nível)`, DECISÃO C)
+- `current_expression` (string; FASE 9: `idle`/`happy`/`proud`/`celebrating`/`caring`/`tired`, calculada por eventos do sistema; volta a `idle` após TTL na leitura)
 - `updated_at`
+- FASE 9: `unlocked_features` (elementos por conquista) NÃO é coluna — é derivado de `achievements` na leitura de `GET /mascot/state`.
 
 ## Tabelas explicitamente NÃO criadas
 

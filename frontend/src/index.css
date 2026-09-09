@@ -246,3 +246,124 @@ li {
 .conversation-block input {
   flex: 1;
 }
+
+/* ---- Gamificação / Mascote (FASE 9) ---- */
+
+.progress-block .progress-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.progress-block .progress-stats {
+  flex: 1;
+  min-width: 0;
+}
+
+.progress-block .level-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.progress-block .level-line strong {
+  font-size: 20px;
+  color: var(--text-h);
+}
+
+.xp-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted-bg);
+  overflow: hidden;
+  margin: 6px 0;
+}
+
+.xp-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.progress-block .achievements {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.progress-block .achievements li {
+  border: none;
+  padding: 0;
+}
+
+.mascot-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.mascot-color input[type='color'] {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+}
+
+.mascot {
+  flex: none;
+  display: inline-block;
+  line-height: 0;
+}
+
+.mascot svg {
+  overflow: visible;
+  transform-origin: 50% 60%;
+  animation: mascot-bob 3.6s ease-in-out infinite;
+}
+
+.mascot[data-expression='celebrating'] svg {
+  animation: mascot-bob 3.6s ease-in-out infinite, mascot-pulse 0.7s ease-in-out 2;
+}
+
+.mascot[data-expression='caring'] svg {
+  transform: rotate(-4deg);
+}
+
+.mascot-body,
+.mascot-face {
+  transition: transform 0.2s ease;
+}
+
+@keyframes mascot-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes mascot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot svg,
+  .mascot[data-expression='celebrating'] svg {
+    animation: none;
+  }
+  .mascot-body,
+  .mascot-face {
+    transition: none;
+  }
+}

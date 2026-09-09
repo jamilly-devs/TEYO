@@ -29,6 +29,7 @@ EXPECTED_TABLES = {
     "gamification_events",
     "mascot_state",
     "pomodoro_sessions",
+    "achievements",
 }
 
 FORBIDDEN_TABLES = {"pets", "news_preferences", "reports", "career", "studies", "house"}

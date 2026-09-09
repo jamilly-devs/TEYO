@@ -27,8 +27,9 @@ def reorganize(
 ) -> dict:
     plan = compute_reorganized_plan(db, user, energy_level=payload.energy_level)
     if payload.energy_level == "low":
-        # Mesmo sinal observável da tool `reorganize_day` (FASE 8: só log;
-        # FASE 9: expressão acolhedora do mascote). Disparado nos dois
-        # pontos de entrada — não muda o corpo da resposta.
+        # Mesmo sinal da tool `reorganize_day`. FASE 9: o mascote reage e
+        # persiste `mascot_state` — commit aqui, como quem chama. Não muda
+        # o corpo da resposta.
         on_low_energy_reported(db, user.id)
+        db.commit()
     return serialize_plan(plan)

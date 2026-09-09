@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+import bootstrap  # noqa: F401  (registers gamification/mascot domain-event subscribers)
 from api.main import app
 from db.base import Base
 from db import models  # noqa: F401  (registers every model on Base.metadata)

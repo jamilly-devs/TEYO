@@ -1,7 +1,7 @@
-"""core/domain_events.py — ganchos onde a FASE 9 (Gamificação/Mascote) vai
-se ligar. Na FASE 8 eles NÃO têm efeito: só registram log, não gravam
-nada, não dão commit. Estes testes travam esse "sem efeito" para que a
-FASE 9 seja uma mudança deliberada, não um acidente."""
+"""core/domain_events.py — os ganchos da FASE 8 agora distribuem para os
+subscribers registrados (FASE 9). Continuam com as mesmas assinaturas e
+sem `commit`. A mudança de "sem efeito" (FASE 8) para "dispara
+gamificação/mascote" (FASE 9) é deliberada — ver DOCUMENTATION_AUDIT.md."""
 
 import logging
 from datetime import datetime
@@ -35,20 +35,43 @@ def _pomodoro(db, user_id) -> PomodoroSession:
     return session
 
 
-def test_hooks_do_not_write_gamification_rows(db_session, user_id):
+def test_task_completed_hook_drives_gamification(db_session, user_id):
     task = _task(db_session, user_id)
-    pomodoro = _pomodoro(db_session, user_id)
 
     on_task_completed(db_session, user_id, task)
-    on_pomodoro_completed(db_session, user_id, pomodoro)
+    db_session.commit()
+
+    assert (
+        db_session.query(GamificationEvent)
+        .filter_by(user_id=user_id, event_type="task_completed")
+        .count()
+        == 1
+    )
+    assert db_session.get(GamificationState, user_id) is not None
+
+
+def test_pomodoro_completed_hook_drives_gamification(db_session, user_id):
+    session = _pomodoro(db_session, user_id)
+
+    on_pomodoro_completed(db_session, user_id, session)
+    db_session.commit()
+
+    assert (
+        db_session.query(GamificationEvent)
+        .filter_by(user_id=user_id, event_type="pomodoro_completed")
+        .count()
+        == 1
+    )
+
+
+def test_low_energy_hook_does_not_award_xp(db_session, user_id):
     on_low_energy_reported(db_session, user_id)
     db_session.commit()
 
-    assert db_session.query(GamificationEvent).count() == 0
-    assert db_session.query(GamificationState).count() == 0
+    assert db_session.query(GamificationEvent).filter_by(user_id=user_id).count() == 0
 
 
-def test_hooks_log_the_event(db_session, user_id, caplog):
+def test_hooks_still_log_the_event(db_session, user_id, caplog):
     task = _task(db_session, user_id)
     with caplog.at_level(logging.INFO, logger="core.domain_events"):
         on_task_completed(db_session, user_id, task)

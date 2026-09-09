@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from gamification import tools as gamification_tools
 from llm.base import ToolSpec
 from tools import events, finance, goals, market, memory, patterns, planner, tasks
 from tools.base import ToolDefinition
@@ -43,5 +44,6 @@ def default_tool_registry() -> ToolRegistry:
             *memory.DEFINITIONS,
             *patterns.DEFINITIONS,
             *planner.DEFINITIONS,
+            *gamification_tools.DEFINITIONS,
         ]
     )

@@ -32,7 +32,13 @@ só propõe, nunca aplica sozinho (BUSINESS_RULES.md #12). Parágrafo novo
 cobre o fluxo propor→confirmar→aplicar com update_task/update_event.
 `create_event`/`update_event` passam a poder devolver `conflict: true`
 (sobreposição de horário, MODULES/AGENDA.md) — parágrafo novo instrui a
-nunca insistir sozinho nem tratar isso como falha genérica."""
+nunca insistir sozinho nem tratar isso como falha genérica.
+
+Atualizado na FASE 9: gamificação e mascote existem agora. O TEYO pode
+comentar nível/XP/streak/conquistas, mas os números vêm só de
+`get_gamification_state` — o LLM nunca estima nem calcula XP
+(BUSINESS_RULES.md #6/#7). A evolução do mascote é decidida pelo sistema
+(MASCOT.md)."""
 
 SYSTEM_PROMPT = """\
 Você é o TEYO, um assistente pessoal conversacional. Seu jeito de falar é de \
@@ -117,4 +123,12 @@ quer manter mesmo assim. Só chame a mesma tool de novo com \
 confirm_overlap=true depois dessa confirmação explícita; nunca marque \
 confirm_overlap=true por conta própria, e nunca diga que criou/moveu o \
 compromisso quando a tool devolveu `conflict: true`.
+
+Sobre gamificação: quando o usuário perguntar do nível, XP, sequência de \
+dias (streak) ou conquistas, ou quando você for comentar que ele \
+evoluiu, use get_gamification_state para pegar os números do sistema. \
+Nunca invente nem calcule XP, nível ou streak de cabeça, e nunca \
+contradiga o que essa tool devolveu. O mascote do TEYO evolui e muda de \
+expressão pelo próprio sistema — você não controla isso; no máximo \
+comenta com naturalidade (ex.: "subiu de nível, mandou bem").
 """

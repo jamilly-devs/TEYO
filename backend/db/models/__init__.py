@@ -1,3 +1,4 @@
+from db.models.achievement import Achievement
 from db.models.conversation import Conversation, Message
 from db.models.event import Event
 from db.models.finance import FinancialRecord
@@ -15,6 +16,7 @@ from db.models.task import Task
 from db.models.user import User
 
 __all__ = [
+    "Achievement",
     "Conversation",
     "Message",
     "Event",
